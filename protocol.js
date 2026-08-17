@@ -21,11 +21,12 @@
 
   // Tuned for phone-browser decode (jsQR), not theoretical peak.
   // Dense V16/V20 @ 24–30fps looks fast on PC but most frames fail on phone.
+  // 2 large codes fill a landscape monitor; 4 tiny codes decode poorly on phones.
   var PRESETS = {
-    stable: { label: "稳定", tiles: 1, version: 10, fps: 10, hint: "远、非全屏不容易挡" },
-    fast: { label: "高速", tiles: 4, version: 10, fps: 14, hint: "手机网页推荐" },
-    rush: { label: "激进", tiles: 4, version: 12, fps: 16, hint: "近距离、手稳" },
-    max: { label: "极限", tiles: 4, version: 14, fps: 16, hint: "贴屏、亮屏" }
+    stable: { label: "稳定", tiles: 1, version: 11, fps: 12, hint: "单码铺满，远一点也稳" },
+    fast: { label: "高速", tiles: 2, version: 12, fps: 16, hint: "左右两大码，推荐" },
+    rush: { label: "激进", tiles: 2, version: 14, fps: 16, hint: "近距离、手稳" },
+    max: { label: "极限", tiles: 2, version: 16, fps: 15, hint: "贴屏、亮屏" }
   };
 
   var CRC_TABLE = (function () {

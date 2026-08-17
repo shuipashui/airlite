@@ -331,18 +331,22 @@
 
       function regionJobs(dw, dh) {
         var hw = (dw / 2) | 0, hh = (dh / 2) | 0;
-        var all = [
-          { x: 0, y: 0, w: dw, h: dh },
+        var tiles = (rx && rx.tiles) || 2;
+        scanSeq++;
+        if (tiles <= 1) return [{ x: 0, y: 0, w: dw, h: dh }];
+        if (tiles === 2) {
+          return [
+            { x: 0, y: 0, w: hw, h: dh },
+            { x: hw, y: 0, w: dw - hw, h: dh }
+          ];
+        }
+        var quads = [
           { x: 0, y: 0, w: hw, h: hh },
           { x: hw, y: 0, w: dw - hw, h: hh },
           { x: 0, y: hh, w: hw, h: dh - hh },
           { x: hw, y: hh, w: dw - hw, h: dh - hh }
         ];
-        var tiles = (rx && rx.tiles) || 4;
-        var pick = tiles >= 4 ? [all[scanSeq % 5]] : [all[0]];
-        if (tiles >= 4 && scanSeq % 2 === 0) pick = [all[0]];
-        scanSeq++;
-        return pick;
+        return [quads[scanSeq % 4]];
       }
 
       function sliceJob(job) {

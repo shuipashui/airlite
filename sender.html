@@ -21,6 +21,8 @@
     button, select, input, textarea { font: inherit; }
     button { cursor: pointer; }
     .app { min-height: 100%; display: flex; flex-direction: column; }
+    .app.sending header.top { display: none; }
+    .app.sending .wrap { grid-template-columns: 280px 1fr; }
     header.top {
       display: flex; align-items: center; justify-content: space-between;
       padding: 16px 22px; border-bottom: 1px solid var(--line);
@@ -128,7 +130,7 @@
           <textarea id="text" placeholder="把文字贴在这里，点「发送文字」"></textarea>
         </div>
         <div class="row">
-          <label class="k">速度预设（手机网页建议「高速」；激进/极限要贴得更近）</label>
+          <label class="k">速度预设（默认左右两个大码，铺满屏幕）</label>
           <div class="presets" id="presets"></div>
         </div>
         <div class="actions">
@@ -354,28 +356,27 @@
         ctx.fillRect(0, 0, w, h);
 
         const n = payloads.length;
-        const cols = n === 1 ? 1 : 2;
+        const cols = n <= 1 ? 1 : (n === 3 ? 3 : 2);
         const rows = Math.ceil(n / cols);
-        const padX = 36;
-        const padY = 36;
-        const gap = n === 1 ? 0 : 22;
+        const padX = 8;
+        const padY = 8;
+        const gap = n === 1 ? 0 : 12;
         const cellW = (w - padX * 2 - gap * (cols - 1)) / cols;
         const cellH = (h - padY * 2 - gap * (rows - 1)) / rows;
-        const fit = Math.min(cellW, cellH) * (n === 1 ? 0.88 : 0.96);
-        const cell = Math.floor(fit);
 
         for (let i = 0; i < n; i++) {
           const col = i % cols;
           const row = Math.floor(i / cols);
           const ras = rasterQR(payloads[i], version);
-          const quiet = n === 1 ? 8 : 6;
+          const quiet = 4;
           const total = ras.n + quiet * 2;
-          const mod = Math.max(2, Math.floor(cell / total));
+          const mod = Math.max(3, Math.floor(Math.min(cellW, cellH) / total));
           const size = total * mod;
           const ox = padX + col * (cellW + gap) + Math.floor((cellW - size) / 2);
           const oy = padY + row * (cellH + gap) + Math.floor((cellH - size) / 2);
           ctx.fillStyle = "#fff";
           ctx.fillRect(ox, oy, size, size);
+          ctx.imageSmoothingEnabled = false;
           ctx.drawImage(
             ras.canvas, 0, 0, ras.n, ras.n,
             ox + quiet * mod, oy + quiet * mod, ras.n * mod, ras.n * mod
@@ -491,6 +492,8 @@
         };
         $("empty").hidden = true;
         $("live").hidden = false;
+        document.querySelector(".app").classList.add("sending");
+        fit();
         $("hudName").textContent = packed.name + "  ·  " + fmtBytes(packed.data.length) +
           (packed.flags & 1 ? " gzip" : "") + "  ·  原始 " + fmtBytes(packed.rawSize);
         playing = true;
@@ -510,6 +513,9 @@
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         $("empty").hidden = false;
         $("live").hidden = true;
+        document.querySelector(".app").classList.remove("sending");
+        fit();
+        drawPairingQR();
       }
 
       $("btnSend").onclick = () => startPlay("file").catch((e) => alert(e.message));
