@@ -151,10 +151,7 @@
       var lastHit = 0;
       var wake = null;
       var lastBoxes = [];
-      var pool = [];
-      var poolBusy = [];
-      var poolOk = true;
-      var dropped = 0;
+      var busy = false;
 
       video.setAttribute("playsinline", "true");
       video.setAttribute("webkit-playsinline", "true");
@@ -172,35 +169,7 @@
       if (inApp) $("appWarn").hidden = false;
       if (!P) $("err").textContent = "协议脚本没加载到。请从 GitHub 网页打开接收端。";
 
-      (function initPool() {
-        var n = 2;
-        try {
-          for (var i = 0; i < n; i++) {
-            (function (slot) {
-              var w = new Worker("decode-worker.js");
-              w.onmessage = function (ev) {
-                var msg = ev.data || {};
-                if (msg.type === "noscript") {
-                  poolOk = false;
-                  poolBusy[slot] = false;
-                  return;
-                }
-                poolBusy[slot] = false;
-                if (msg.hits && msg.hits.length) handleHits(msg.hits);
-              };
-              w.onerror = function () {
-                poolOk = false;
-                poolBusy[slot] = false;
-              };
-              pool.push(w);
-              poolBusy.push(false);
-            })(i);
-          }
-        } catch (_) {
-          poolOk = false;
-          pool = [];
-        }
-      })();
+
 
       function fmtBytes(n) {
         if (n < 1024) return n + " B";
@@ -389,52 +358,26 @@
       }
 
       function scanFrame() {
-        if (!running || result || !video.videoWidth) return;
-        var tiles = (rx && rx.tiles) || 2;
-        var free = [];
-        var s;
-        for (s = 0; s < poolBusy.length; s++) if (!poolBusy[s]) free.push(s);
-        if (poolOk && pool.length && free.length === 0) {
-          dropped++;
-          return;
+        if (busy || !running || result || !video.videoWidth) return;
+        busy = true;
+        try {
+          var tiles = (rx && rx.tiles) || 2;
+          var vw = video.videoWidth;
+          var vh = video.videoHeight;
+          var cap = 960;
+          var dw = vw > cap ? cap : vw;
+          var dh = dw === vw ? vh : Math.max(1, Math.round(vh * (dw / vw)));
+          if (workCanvas.width !== dw) workCanvas.width = dw;
+          if (workCanvas.height !== dh) workCanvas.height = dh;
+          wctx.drawImage(video, 0, 0, dw, dh);
+          var mid = (dw / 2) | 0;
+          var rois = tiles <= 1
+            ? [{ x: 0, y: 0, w: dw, h: dh }]
+            : [{ x: 0, y: 0, w: mid, h: dh }, { x: mid, y: 0, w: dw - mid, h: dh }];
+          handleHits(scanLocal(rois.map(sliceJob)));
+        } finally {
+          busy = false;
         }
-        var vw = video.videoWidth;
-        var vh = video.videoHeight;
-        var cap = 1280;
-        var dw = vw > cap ? cap : vw;
-        var dh = dw === vw ? vh : Math.max(1, Math.round(vh * (dw / vw)));
-        if (workCanvas.width !== dw) workCanvas.width = dw;
-        if (workCanvas.height !== dh) workCanvas.height = dh;
-        wctx.drawImage(video, 0, 0, dw, dh);
-        var mid = (dw / 2) | 0;
-        var rois = tiles <= 1
-          ? [{ x: 0, y: 0, w: dw, h: dh }]
-          : [{ x: 0, y: 0, w: mid, h: dh }, { x: mid, y: 0, w: dw - mid, h: dh }];
-        if (poolOk && pool.length) {
-          var n = Math.min(rois.length, free.length);
-          for (var r = 0; r < n; r++) {
-            var slot = free[r];
-            var roi = rois[r];
-            var img = wctx.getImageData(roi.x, roi.y, roi.w, roi.h);
-            poolBusy[slot] = true;
-            try {
-              pool[slot].postMessage({
-                type: "scan",
-                slot: slot,
-                data: img.data,
-                w: roi.w,
-                h: roi.h,
-                ox: roi.x,
-                oy: roi.y
-              }, [img.data.buffer]);
-            } catch (_) {
-              poolBusy[slot] = false;
-              poolOk = false;
-            }
-          }
-          return;
-        }
-        handleHits(scanLocal(rois.map(sliceJob)));
       }
 
       function loop() {
@@ -464,7 +407,6 @@
         if (!md || !md.getUserMedia) throw new Error("no-api");
         var face = preferBack ? "environment" : "user";
         var tries = [
-          { audio: false, video: { facingMode: { ideal: face }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60, max: 60 } } },
           { audio: false, video: { facingMode: { ideal: face } } },
           { audio: false, video: { facingMode: face } },
           { audio: false, video: true }
