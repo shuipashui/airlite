@@ -378,30 +378,13 @@
         return hits;
       }
 
-      async function scanFrame() {
+      function scanFrame() {
         if (busy || !running || result || !video.videoWidth) return;
         busy = true;
         try {
           var vw = video.videoWidth;
           var vh = video.videoHeight;
-          var need = (rx && rx.tiles) || 2;
-          var gotN = 0;
-          if (detector) {
-            try {
-              var codes = await detector.detect(video);
-              var hits = [];
-              for (var i = 0; i < codes.length; i++) {
-                var c = codes[i];
-                hits.push({ bytes: c.rawValue, text: c.rawValue, box: c.cornerPoints || null });
-              }
-              if (hits.length) gotN = handleHits(hits);
-            } catch (_) {}
-          }
-          if (result || gotN >= need) {
-            busy = false;
-            return;
-          }
-          var maxW = 1920;
+          var maxW = 960;
           var scale = vw > maxW ? maxW / vw : 1;
           var dw = Math.max(1, (vw * scale) | 0);
           var dh = Math.max(1, (vh * scale) | 0);
@@ -410,15 +393,9 @@
             workCanvas.height = dh;
           }
           wctx.drawImage(video, 0, 0, dw, dh);
-          var jobs = regionJobs(dw, dh).map(sliceJob);
-          if (worker && workerOk !== false) {
-            jobId++;
-            worker.postMessage({ type: "scan", id: jobId, jobs: jobs });
-            return;
-          }
-          handleHits(scanLocal(jobs));
+          handleHits(scanLocal(regionJobs(dw, dh).map(sliceJob)));
         } finally {
-          if (!worker || workerOk === false) busy = false;
+          busy = false;
         }
       }
 
