@@ -409,20 +409,49 @@
         const padX = 10;
         const padTop = 10;
         const padBottom = 56;
-        const gap = n >= 4 ? 16 : (n === 1 ? 0 : 12);
-        const cellW = (w - padX * 2 - gap * (cols - 1)) / cols;
-        const cellH = (h - padTop - padBottom - gap * (rows - 1)) / rows;
+        const availW = w - padX * 2;
+        const availH = h - padTop - padBottom;
+        const packTight = n >= 4;
+        const gap = packTight ? 6 : (n === 1 ? 0 : 12);
+        let origins = null;
+        let qrSize = 0;
+        let quiet = 4;
+        if (packTight) {
+          const probe = rasterQR(payloads[0], version);
+          quiet = 4;
+          const total = probe.n + quiet * 2;
+          const maxCell = Math.floor(Math.min(availW, availH) / 2) - 3;
+          const mod = Math.max(3, Math.floor(maxCell / total));
+          qrSize = total * mod;
+          const cluster = qrSize * 2 + gap;
+          const x0 = Math.floor((w - cluster) / 2);
+          const y0 = padTop + Math.floor((availH - cluster) / 2);
+          origins = [];
+          for (let i = 0; i < n; i++) {
+            origins.push({
+              x: x0 + (i % 2) * (qrSize + gap),
+              y: y0 + Math.floor(i / 2) * (qrSize + gap)
+            });
+          }
+        }
+        const cellW = (availW - gap * (cols - 1)) / cols;
+        const cellH = (availH - gap * (rows - 1)) / rows;
 
         for (let i = 0; i < n; i++) {
           const col = i % cols;
           const row = Math.floor(i / cols);
           const ras = rasterQR(payloads[i], version);
-          const quiet = 4;
           const total = ras.n + quiet * 2;
-          const mod = Math.max(3, Math.floor(Math.min(cellW, cellH) / total));
-          const size = total * mod;
-          const ox = padX + col * (cellW + gap) + Math.floor((cellW - size) / 2);
-          const oy = padTop + row * (cellH + gap) + Math.floor((cellH - size) / 2);
+          const mod = packTight
+            ? Math.max(3, Math.floor(qrSize / total))
+            : Math.max(3, Math.floor(Math.min(cellW, cellH) / total));
+          const size = packTight ? qrSize : total * mod;
+          const ox = packTight
+            ? origins[i].x
+            : padX + col * (cellW + gap) + Math.floor((cellW - size) / 2);
+          const oy = packTight
+            ? origins[i].y
+            : padTop + row * (cellH + gap) + Math.floor((cellH - size) / 2);
           ctx.fillStyle = "#fff";
           ctx.fillRect(ox, oy, size, size);
           ctx.imageSmoothingEnabled = false;
