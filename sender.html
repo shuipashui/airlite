@@ -17,10 +17,10 @@
       --danger: #ff5d6c;
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
     button, select, input, textarea { font: inherit; }
     button { cursor: pointer; }
-    .app { min-height: 100%; display: flex; flex-direction: column; }
+    .app { height: 100%; display: flex; flex-direction: column; min-height: 0; }
     .app.sending header.top,
     .app.sending aside { display: none; }
     .app.sending .wrap { grid-template-columns: 1fr; }
@@ -34,7 +34,7 @@
     .dock button.primary { background: var(--accent); color: #04140d; font-weight: 700; }
     header.top {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 16px 22px; border-bottom: 1px solid var(--line);
+      padding: 10px 16px; border-bottom: 1px solid var(--line); flex: 0 0 auto;
     }
     .brand { display: flex; gap: 12px; align-items: center; }
     .logo {
@@ -44,10 +44,10 @@
     }
     .brand h1 { margin: 0; font-size: 18px; letter-spacing: .04em; }
     .brand p { margin: 2px 0 0; color: var(--mute); font-size: 12px; }
-    .wrap { flex: 1; display: grid; grid-template-columns: 340px 1fr; min-height: 0; }
+    .wrap { flex: 1; display: grid; grid-template-columns: minmax(260px, 300px) 1fr; min-height: 0; overflow: hidden; }
     aside {
-      border-right: 1px solid var(--line); padding: 18px; overflow: auto;
-      background: #0b0d13;
+      border-right: 1px solid var(--line); padding: 12px 14px; overflow: auto;
+      background: #0b0d13; min-height: 0;
     }
     .banner {
       display: none; margin: 0 18px 12px; padding: 8px 10px; border-radius: 8px;
@@ -76,7 +76,7 @@
       width: 100%; background: var(--panel); color: var(--text);
       border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px;
     }
-    textarea { min-height: 84px; resize: vertical; }
+    textarea { min-height: 52px; max-height: 88px; resize: vertical; }
     .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .preset {
       text-align: left; background: var(--panel); color: var(--text);
@@ -93,7 +93,7 @@
     .btn.ghost { background: #1a1e2a; color: var(--text); }
     .meta { margin-top: 14px; font-size: 12px; color: var(--mute); line-height: 1.65; }
     .meta b { color: var(--text); font-weight: 600; }
-    main.stage { position: relative; display: grid; place-items: center; background: #000; overflow: hidden; }
+    main.stage { position: relative; min-height: 0; background: #000; overflow: hidden; }
     #qrStage { width: 100%; height: 100%; display: block; position: relative; z-index: 0; }
     .live { margin-top: 12px; font-size: 12px; color: var(--mute); line-height: 1.6; }
     .live .bar { height: 6px; background: #222; border-radius: 99px; overflow: hidden; margin: 6px 0; }
@@ -101,25 +101,42 @@
     .empty {
       position: absolute; inset: 0; z-index: 5;
       display: flex; align-items: center; justify-content: center;
-      color: var(--mute); text-align: center; padding: 20px;
-      pointer-events: none; background: #000;
+      color: var(--mute); text-align: center; padding: 12px;
+      pointer-events: none; background: #000; overflow: hidden;
     }
     .empty[hidden] { display: none !important; }
-    .empty h2 { color: var(--text); font-size: 20px; margin: 0 0 8px; }
-    .pair { display: flex; flex-direction: column; align-items: center; gap: 12px; pointer-events: auto; }
-    .qr-frame {
-      background: #fff; border-radius: 12px; padding: 12px; line-height: 0;
-      box-shadow: 0 0 0 4px #fff;
+    .empty h2 { color: var(--text); font-size: clamp(15px, 2.2vw, 20px); margin: 0; }
+    .pair {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 8px; pointer-events: auto; max-width: 100%; max-height: 100%;
     }
-    .qr-frame img { display: block; width: 240px; height: 240px; image-rendering: pixelated; }
-    #sidePairBox .qr-frame img { width: 168px; height: 168px; margin: 0 auto; }
-    .urlbox { font-size: 13px; color: var(--accent); word-break: break-all; }
+    .qr-frame {
+      background: #fff; border-radius: 12px; padding: 8px; line-height: 0;
+      flex: 0 1 auto;
+    }
+    .qr-frame img {
+      display: block;
+      width: min(280px, 36vw, calc(100vh - 220px));
+      height: auto;
+      aspect-ratio: 1;
+      image-rendering: pixelated;
+    }
+    #sidePairBox { display: none; }
+    .urlbox { font-size: 12px; color: var(--accent); word-break: break-all; max-width: min(420px, 90%); }
     .urlbox a { color: var(--accent); }
-    .hint { font-size: 12px; color: #6d7284; margin-top: 18px; line-height: 1.6; }
-    @media (max-width: 860px) {
-      .wrap { grid-template-columns: 1fr; }
-      aside { border-right: 0; border-bottom: 1px solid var(--line); }
-      main.stage { min-height: 58vh; }
+    .hint { font-size: 12px; color: #6d7284; margin-top: 12px; line-height: 1.6; }
+    .pair .step { font-size: 13px; }
+    @media (max-width: 900px) {
+      .wrap { grid-template-columns: 1fr; grid-template-rows: minmax(160px, 34vh) 1fr; }
+      aside { border-right: 0; border-bottom: 1px solid var(--line); max-height: 34vh; }
+      main.stage { min-height: 0; }
+      .qr-frame img { width: min(220px, 56vw, calc(66vh - 140px)); }
+    }
+    @media (max-height: 700px) {
+      header.top { padding: 6px 12px; }
+      .brand p, #clockHint { display: none; }
+      textarea { display: none; }
+      .qr-frame img { width: min(200px, calc(100vh - 160px), 40vw); }
     }
   </style>
 </head>
@@ -187,7 +204,7 @@
             <h2>第一步：手机扫这个码打开接收端</h2>
             <div class="qr-frame"><img id="pairQr" alt="接收端二维码" /></div>
             <div class="urlbox" id="recvUrl"><a href="https://shuipashui.github.io/airlite/receiver.html" target="_blank" rel="noopener">https://shuipashui.github.io/airlite/receiver.html</a></div>
-            <div>第二步：选文件点「开始发送」，把手机对准屏幕上的动态二维码。</div>
+            <div class="step">第二步：选文件点「开始发送」，把手机对准屏幕上的动态二维码。</div>
           </div>
         </div>
 
