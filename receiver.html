@@ -19,9 +19,15 @@
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; background: #000; color: var(--text); font-family: "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif; }
     button { font: inherit; cursor: pointer; }
-    .view { position: relative; height: 100%; overflow: hidden; }
-    video, canvas.overlay { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
-    canvas.overlay { pointer-events: none; }
+    .view { position: relative; height: 100%; overflow: hidden; background: #000; }
+    #video {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      object-fit: contain; background: #111; z-index: 0;
+    }
+    canvas.overlay {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      pointer-events: none; background: transparent; z-index: 1;
+    }
     .top, .bot {
       position: absolute; left: 0; right: 0; z-index: 3;
       padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
@@ -89,6 +95,7 @@
           </div>
         </div>
         <div class="row">
+          <button class="btn ghost" type="button" id="btnFlip">切换镜头</button>
           <button class="btn ghost" type="button" id="btnTorch">手电筒</button>
           <button class="btn ghost" type="button" id="btnReset">重新接收</button>
         </div>
@@ -124,6 +131,7 @@
       var rx = P ? new P.FountainRx() : null;
 
       var stream = null;
+      var preferBack = true;
       var detector = null;
       var busy = false;
       var lastBytes = 0;
@@ -183,16 +191,21 @@
       }
 
       function paintOverlay(boxes) {
-        var w = overlay.width = video.videoWidth || overlay.clientWidth || 1;
-        var h = overlay.height = video.videoHeight || overlay.clientHeight || 1;
+        var w = overlay.width = overlay.clientWidth || window.innerWidth || 1;
+        var h = overlay.height = overlay.clientHeight || window.innerHeight || 1;
         octx.clearRect(0, 0, w, h);
+        var vw = video.videoWidth || w;
+        var vh = video.videoHeight || h;
+        var scale = Math.min(w / vw, h / vh);
+        var ox = (w - vw * scale) / 2;
+        var oy = (h - vh * scale) / 2;
         octx.strokeStyle = "#3dffb0";
         octx.lineWidth = 3;
         (boxes || []).forEach(function (b) {
           if (!b || !b.length) return;
           octx.beginPath();
-          octx.moveTo(b[0].x, b[0].y);
-          for (var i = 1; i < b.length; i++) octx.lineTo(b[i].x, b[i].y);
+          octx.moveTo(ox + b[0].x * scale, oy + b[0].y * scale);
+          for (var i = 1; i < b.length; i++) octx.lineTo(ox + b[i].x * scale, oy + b[i].y * scale);
           octx.closePath();
           octx.stroke();
         });
@@ -356,9 +369,10 @@
       async function openCamera() {
         var md = navigator.mediaDevices;
         if (!md || !md.getUserMedia) throw new Error("no-api");
+        var face = preferBack ? "environment" : "user";
         var tries = [
-          { audio: false, video: { facingMode: { ideal: "environment" } } },
-          { audio: false, video: { facingMode: "environment" } },
+          { audio: false, video: { facingMode: { ideal: face } } },
+          { audio: false, video: { facingMode: face } },
           { audio: false, video: true }
         ];
         var last = null;
@@ -379,12 +393,28 @@
           return;
         }
         try {
+          if (stream) {
+            stream.getTracks().forEach(function (t) { t.stop(); });
+            stream = null;
+          }
           stream = await openCamera();
           video.srcObject = stream;
-          var played = video.play();
-          if (played && played.catch) await played.catch(function () {});
+          if (!video.videoWidth) {
+            await new Promise(function (resolve) {
+              var done = false;
+              function finish() {
+                if (done) return;
+                done = true;
+                video.onloadedmetadata = null;
+                resolve();
+              }
+              video.onloadedmetadata = finish;
+              setTimeout(finish, 2000);
+            });
+          }
+          try { await video.play(); } catch (_) {}
           $("gate").style.display = "none";
-          $("camInfo").textContent = (video.videoWidth || "相机") + (video.videoHeight ? "×" + video.videoHeight : " 已打开");
+          $("camInfo").textContent = (video.videoWidth || "?") + "×" + (video.videoHeight || "?");
           if ("BarcodeDetector" in window) {
             try { detector = new BarcodeDetector({ formats: ["qr_code"] }); } catch (_) { detector = null; }
           }
@@ -411,6 +441,10 @@
       }
 
       $("btnStart").onclick = startCam;
+      $("btnFlip").onclick = function () {
+        preferBack = !preferBack;
+        startCam();
+      };
       $("btnReset").onclick = resetRx;
       $("btnSave").onclick = function () {
         if (!result) return;
