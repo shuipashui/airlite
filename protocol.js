@@ -25,8 +25,8 @@
   var PRESETS = {
     stable: { label: "稳定", tiles: 1, version: 12, fps: 12, hint: "单码，远一点也稳" },
     fast: { label: "高速", tiles: 2, version: 12, fps: 16, hint: "实测约 10KB/s，推荐" },
-    rush: { label: "激进", tiles: 2, version: 14, fps: 16, hint: "靠近再试" },
-    max: { label: "极限", tiles: 2, version: 15, fps: 16, hint: "贴屏、亮屏" }
+    rush: { label: "激进", tiles: 2, version: 14, fps: 16, hint: "双码更密，约 14KB/s" },
+    max: { label: "极限", tiles: 4, version: 12, fps: 14, hint: "四码铺满，贴屏" }
   };
 
   var CRC_TABLE = (function () {

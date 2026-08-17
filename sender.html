@@ -409,7 +409,7 @@
         const padX = 10;
         const padTop = 10;
         const padBottom = 56;
-        const gap = n === 1 ? 0 : 12;
+        const gap = n >= 4 ? 16 : (n === 1 ? 0 : 12);
         const cellW = (w - padX * 2 - gap * (cols - 1)) / cols;
         const cellH = (h - padTop - padBottom - gap * (rows - 1)) / rows;
 

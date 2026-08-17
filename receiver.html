@@ -370,10 +370,24 @@
           if (workCanvas.width !== dw) workCanvas.width = dw;
           if (workCanvas.height !== dh) workCanvas.height = dh;
           wctx.drawImage(video, 0, 0, dw, dh);
-          var mid = (dw / 2) | 0;
-          var rois = tiles <= 1
-            ? [{ x: 0, y: 0, w: dw, h: dh }]
-            : [{ x: 0, y: 0, w: mid, h: dh }, { x: mid, y: 0, w: dw - mid, h: dh }];
+          var hw = (dw / 2) | 0;
+          var hh = (dh / 2) | 0;
+          var rois;
+          if (tiles <= 1) {
+            rois = [{ x: 0, y: 0, w: dw, h: dh }];
+          } else if (tiles >= 4) {
+            rois = [
+              { x: 0, y: 0, w: hw, h: hh },
+              { x: hw, y: 0, w: dw - hw, h: hh },
+              { x: 0, y: hh, w: hw, h: dh - hh },
+              { x: hw, y: hh, w: dw - hw, h: dh - hh }
+            ];
+          } else {
+            rois = [
+              { x: 0, y: 0, w: hw, h: dh },
+              { x: hw, y: 0, w: dw - hw, h: dh }
+            ];
+          }
           handleHits(scanLocal(rois.map(sliceJob)));
         } finally {
           busy = false;
