@@ -25,12 +25,14 @@
     .app.sending aside { display: none; }
     .app.sending .wrap { grid-template-columns: 1fr; }
     .dock {
-      display: none; position: absolute; left: 10px; top: 10px; z-index: 6;
-      align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px;
-      background: rgba(8,10,14,.62); color: #e8eaef; font-size: 12px;
+      display: none; position: absolute; left: 50%; bottom: 10px; z-index: 6;
+      transform: translateX(-50%);
+      align-items: center; gap: 8px; padding: 6px 10px; border-radius: 10px;
+      background: rgba(8,10,14,.72); color: #e8eaef; font-size: 12px;
+      max-width: calc(100% - 20px); white-space: nowrap;
     }
     .app.sending .dock { display: flex; }
-    .dock button { border: 0; border-radius: 8px; padding: 7px 10px; background: #1a1e2a; color: #e8eaef; }
+    .dock button { border: 0; border-radius: 8px; padding: 6px 10px; background: #1a1e2a; color: #e8eaef; }
     .dock button.primary { background: var(--accent); color: #04140d; font-weight: 700; }
     header.top {
       display: flex; align-items: center; justify-content: space-between;
@@ -404,11 +406,12 @@
         const n = payloads.length;
         const cols = n <= 1 ? 1 : (n === 3 ? 3 : 2);
         const rows = Math.ceil(n / cols);
-        const padX = 8;
-        const padY = 8;
+        const padX = 10;
+        const padTop = 10;
+        const padBottom = 56;
         const gap = n === 1 ? 0 : 12;
         const cellW = (w - padX * 2 - gap * (cols - 1)) / cols;
-        const cellH = (h - padY * 2 - gap * (rows - 1)) / rows;
+        const cellH = (h - padTop - padBottom - gap * (rows - 1)) / rows;
 
         for (let i = 0; i < n; i++) {
           const col = i % cols;
@@ -419,7 +422,7 @@
           const mod = Math.max(3, Math.floor(Math.min(cellW, cellH) / total));
           const size = total * mod;
           const ox = padX + col * (cellW + gap) + Math.floor((cellW - size) / 2);
-          const oy = padY + row * (cellH + gap) + Math.floor((cellH - size) / 2);
+          const oy = padTop + row * (cellH + gap) + Math.floor((cellH - size) / 2);
           ctx.fillStyle = "#fff";
           ctx.fillRect(ox, oy, size, size);
           ctx.imageSmoothingEnabled = false;
