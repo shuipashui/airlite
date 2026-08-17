@@ -16,11 +16,13 @@
     1628, 1732, 1840, 1952, 2068, 2188, 2303, 2431, 2563, 2699, 2809, 2953
   ];
 
+  // Tuned for phone-browser decode (jsQR), not theoretical peak.
+  // Dense V16/V20 @ 24–30fps looks fast on PC but most frames fail on phone.
   var PRESETS = {
-    stable: { label: "稳定", tiles: 1, version: 12, fps: 12, hint: "远距离 / 糊屏" },
-    fast: { label: "高速", tiles: 4, version: 12, fps: 18, hint: "手机网页推荐" },
-    rush: { label: "激进", tiles: 4, version: 16, fps: 24, hint: "近距离默认" },
-    max: { label: "极限", tiles: 4, version: 20, fps: 30, hint: "亮屏贴拍" }
+    stable: { label: "稳定", tiles: 1, version: 10, fps: 10, hint: "远、非全屏不容易挡" },
+    fast: { label: "高速", tiles: 4, version: 10, fps: 14, hint: "手机网页推荐" },
+    rush: { label: "激进", tiles: 4, version: 12, fps: 16, hint: "近距离、手稳" },
+    max: { label: "极限", tiles: 4, version: 14, fps: 16, hint: "贴屏、亮屏" }
   };
 
   var CRC_TABLE = (function () {

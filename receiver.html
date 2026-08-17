@@ -143,6 +143,7 @@
       var workCanvas = document.createElement("canvas");
       var wctx = workCanvas.getContext("2d", { willReadFrequently: true });
       var running = false;
+      var scanSeq = 0;
 
       video.setAttribute("playsinline", "true");
       video.setAttribute("webkit-playsinline", "true");
@@ -274,34 +275,29 @@
 
       function scanWithJsQR(w, h) {
         if (typeof jsQR !== "function") return [];
-        var boxes = [];
-        var jobs = [{ x: 0, y: 0, w: w, h: h }];
-        if (w > 240 && h > 240) {
-          var hw = (w / 2) | 0, hh = (h / 2) | 0;
-          jobs.push({ x: 0, y: 0, w: hw, h: hh });
-          jobs.push({ x: hw, y: 0, w: w - hw, h: hh });
-          jobs.push({ x: 0, y: hh, w: hw, h: h - hh });
-          jobs.push({ x: hw, y: hh, w: w - hw, h: h - hh });
-        }
-        for (var i = 0; i < jobs.length; i++) {
-          var j = jobs[i];
-          var slice = wctx.getImageData(j.x, j.y, j.w, j.h);
-          var code = jsQR(slice.data, j.w, j.h, { inversionAttempts: "attemptBoth" });
-          if (!code) continue;
-          var bytes = bytesFromDetect(code.binaryData) || (P && P.binStrToBytes(code.data || ""));
-          if (ingest(bytes)) {
-            decoded++;
-            if (code.location) {
-              boxes.push([
-                { x: code.location.topLeftCorner.x + j.x, y: code.location.topLeftCorner.y + j.y },
-                { x: code.location.topRightCorner.x + j.x, y: code.location.topRightCorner.y + j.y },
-                { x: code.location.bottomRightCorner.x + j.x, y: code.location.bottomRightCorner.y + j.y },
-                { x: code.location.bottomLeftCorner.x + j.x, y: code.location.bottomLeftCorner.y + j.y }
-              ]);
-            }
-          }
-        }
-        return boxes;
+        var hw = (w / 2) | 0, hh = (h / 2) | 0;
+        var jobs = [
+          { x: 0, y: 0, w: w, h: h },
+          { x: 0, y: 0, w: hw, h: hh },
+          { x: hw, y: 0, w: w - hw, h: hh },
+          { x: 0, y: hh, w: hw, h: h - hh },
+          { x: hw, y: hh, w: w - hw, h: h - hh }
+        ];
+        var j = jobs[scanSeq % jobs.length];
+        scanSeq++;
+        var slice = wctx.getImageData(j.x, j.y, j.w, j.h);
+        var code = jsQR(slice.data, j.w, j.h, { inversionAttempts: "dontInvert" });
+        if (!code) return [];
+        var bytes = bytesFromDetect(code.binaryData) || (P && P.binStrToBytes(code.data || ""));
+        if (!ingest(bytes)) return [];
+        decoded++;
+        if (!code.location) return [];
+        return [[
+          { x: code.location.topLeftCorner.x + j.x, y: code.location.topLeftCorner.y + j.y },
+          { x: code.location.topRightCorner.x + j.x, y: code.location.topRightCorner.y + j.y },
+          { x: code.location.bottomRightCorner.x + j.x, y: code.location.bottomRightCorner.y + j.y },
+          { x: code.location.bottomLeftCorner.x + j.x, y: code.location.bottomLeftCorner.y + j.y }
+        ]];
       }
 
       async function scanFrame() {
@@ -323,8 +319,8 @@
               }
             } catch (_) {}
           }
-          if (!rx || !rx.ready || boxes.length === 0) {
-            var maxW = 960;
+          if (!rx || !rx.ready || boxes.length < 2) {
+            var maxW = 1280;
             var scale = vw > maxW ? maxW / vw : 1;
             var dw = Math.max(1, (vw * scale) | 0);
             var dh = Math.max(1, (vh * scale) | 0);

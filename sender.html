@@ -84,13 +84,9 @@
     .meta b { color: var(--text); font-weight: 600; }
     main.stage { position: relative; display: grid; place-items: center; background: #000; overflow: hidden; }
     #qrStage { width: 100%; height: 100%; display: block; }
-    .hud {
-      position: absolute; left: 16px; right: 16px; bottom: 16px;
-      display: flex; justify-content: space-between; align-items: flex-end;
-      pointer-events: none; text-shadow: 0 1px 8px #000;
-    }
-    .hud .bar { height: 6px; background: #222; border-radius: 99px; overflow: hidden; margin-top: 8px; width: min(420px, 50vw); }
-    .hud .bar i { display: block; height: 100%; width: 0; background: var(--accent); }
+    .live { margin-top: 12px; font-size: 12px; color: var(--mute); line-height: 1.6; }
+    .live .bar { height: 6px; background: #222; border-radius: 99px; overflow: hidden; margin: 6px 0; }
+    .live .bar i { display: block; height: 100%; width: 0; background: var(--accent); }
     .empty {
       position: absolute; color: var(--mute); text-align: center; max-width: 460px; padding: 20px;
     }
@@ -132,7 +128,7 @@
           <textarea id="text" placeholder="把文字贴在这里，点「发送文字」"></textarea>
         </div>
         <div class="row">
-          <label class="k">速度预设（手机网页接收建议「高速 / 激进」）</label>
+          <label class="k">速度预设（手机网页建议「高速」；激进/极限要贴得更近）</label>
           <div class="presets" id="presets"></div>
         </div>
         <div class="actions">
@@ -144,6 +140,11 @@
           <button class="btn ghost" id="btnStop">停止</button>
         </div>
         <div class="meta" id="meta">尚未选择文件。</div>
+        <div class="live" id="live" hidden>
+          <div id="hudName">—</div>
+          <div class="bar"><i id="hudBar"></i></div>
+          <div id="hudStat"></div>
+        </div>
         <p class="hint">
           电脑可直接双击本文件发送。手机请用 Safari / Chrome 打开右侧二维码地址（GitHub 网页），再授权摄像头对准本屏。不要用微信内置浏览器。
         </p>
@@ -158,13 +159,7 @@
             <div>第二步：选文件点「开始发送」，把手机对准屏幕上的动态二维码。</div>
           </div>
         </div>
-        <div class="hud" id="hud" hidden>
-          <div>
-            <div id="hudName">—</div>
-            <div class="bar"><i id="hudBar"></i></div>
-          </div>
-          <div id="hudStat" style="text-align:right;font-size:12px;opacity:.9"></div>
-        </div>
+
       </main>
     </div>
   </div>
@@ -182,7 +177,7 @@
       const P = typeof AirLite !== "undefined" ? AirLite : null;
       const RECEIVER_URL = (window.AIRLITE && AIRLITE.RECEIVER) || "https://shuipashui.github.io/airlite/receiver.html";
 
-      let presetKey = "rush";
+      let presetKey = "fast";
       let files = [];
       let playing = false;
       let paused = false;
@@ -327,17 +322,20 @@
           canvas.height = Math.floor(h * dpr);
         }
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.imageSmoothingEnabled = false;
         ctx.fillStyle = "#000";
         ctx.fillRect(0, 0, w, h);
 
         const n = payloads.length;
         const cols = n === 1 ? 1 : 2;
         const rows = Math.ceil(n / cols);
-        const pad = 18;
-        const gap = 14;
-        const cellW = (w - pad * 2 - gap * (cols - 1)) / cols;
-        const cellH = (h - pad * 2 - gap * (rows - 1)) / rows;
-        const cell = Math.floor(Math.min(cellW, cellH));
+        const padX = 36;
+        const padY = 36;
+        const gap = n === 1 ? 0 : 22;
+        const cellW = (w - padX * 2 - gap * (cols - 1)) / cols;
+        const cellH = (h - padY * 2 - gap * (rows - 1)) / rows;
+        const fit = Math.min(cellW, cellH) * (n === 1 ? 0.88 : 0.96);
+        const cell = Math.floor(fit);
 
         for (let i = 0; i < n; i++) {
           const col = i % cols;
@@ -346,12 +344,12 @@
           qr.addData(P.bytesToBinStr(payloads[i]), "Byte");
           qr.make();
           const count = qr.getModuleCount();
-          const quiet = 4;
+          const quiet = n === 1 ? 8 : 6;
           const total = count + quiet * 2;
-          const mod = Math.max(1, Math.floor(cell / total));
+          const mod = Math.max(2, Math.floor(cell / total));
           const size = total * mod;
-          const ox = pad + col * (cell + gap) + Math.floor((cellW - size) / 2);
-          const oy = pad + row * (cell + gap) + Math.floor((cellH - size) / 2);
+          const ox = padX + col * (cellW + gap) + Math.floor((cellW - size) / 2);
+          const oy = padY + row * (cellH + gap) + Math.floor((cellH - size) / 2);
           ctx.fillStyle = "#fff";
           ctx.fillRect(ox, oy, size, size);
           ctx.fillStyle = "#000";
@@ -447,7 +445,7 @@
           tileSeq: 0
         };
         $("empty").hidden = true;
-        $("hud").hidden = false;
+        $("live").hidden = false;
         $("hudName").textContent = packed.name + "  ·  " + fmtBytes(packed.data.length) +
           (packed.flags & 1 ? " gzip" : "") + "  ·  原始 " + fmtBytes(packed.rawSize);
         playing = true;
@@ -466,7 +464,7 @@
         ctx.fillStyle = "#000";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         $("empty").hidden = false;
-        $("hud").hidden = true;
+        $("live").hidden = true;
       }
 
       $("btnSend").onclick = () => startPlay("file").catch((e) => alert(e.message));
