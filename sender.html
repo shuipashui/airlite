@@ -94,16 +94,24 @@
     .meta { margin-top: 14px; font-size: 12px; color: var(--mute); line-height: 1.65; }
     .meta b { color: var(--text); font-weight: 600; }
     main.stage { position: relative; display: grid; place-items: center; background: #000; overflow: hidden; }
-    #qrStage { width: 100%; height: 100%; display: block; }
+    #qrStage { width: 100%; height: 100%; display: block; position: relative; z-index: 0; }
     .live { margin-top: 12px; font-size: 12px; color: var(--mute); line-height: 1.6; }
     .live .bar { height: 6px; background: #222; border-radius: 99px; overflow: hidden; margin: 6px 0; }
     .live .bar i { display: block; height: 100%; width: 0; background: var(--accent); }
     .empty {
-      position: absolute; color: var(--mute); text-align: center; max-width: 460px; padding: 20px;
+      position: absolute; inset: 0; z-index: 5;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--mute); text-align: center; padding: 20px;
+      pointer-events: none; background: #000;
     }
+    .empty[hidden] { display: none !important; }
     .empty h2 { color: var(--text); font-size: 20px; margin: 0 0 8px; }
-    .pair { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-    #pairQr { width: 196px; height: 196px; background: #fff; border-radius: 8px; }
+    .pair { display: flex; flex-direction: column; align-items: center; gap: 12px; pointer-events: auto; }
+    #pairQr, #sidePair {
+      width: 260px; height: 260px; background: #fff; border-radius: 10px;
+      padding: 10px; box-sizing: border-box;
+    }
+    #sidePair { width: 180px; height: 180px; margin: 10px auto 0; display: block; }
     .urlbox { font-size: 12px; color: var(--accent); word-break: break-all; }
     .hint { font-size: 12px; color: #6d7284; margin-top: 18px; line-height: 1.6; }
     @media (max-width: 860px) {
@@ -156,8 +164,12 @@
           <div class="bar"><i id="hudBar"></i></div>
           <div id="hudStat"></div>
         </div>
+        <div class="row" id="sidePairBox">
+          <label class="k">手机扫这个码打开接收端</label>
+          <canvas id="sidePair" width="180" height="180"></canvas>
+        </div>
         <p class="hint">
-          电脑可直接双击本文件发送。手机请用 Safari / Chrome 打开右侧二维码地址（GitHub 网页），再授权摄像头对准本屏。不要用微信内置浏览器。
+          右侧大码或上面小码都是接收端地址。用 Safari / Chrome 扫开，不要用微信内置浏览器。
         </p>
       </aside>
       <main class="stage">
@@ -170,7 +182,7 @@
         <div class="empty" id="empty">
           <div class="pair">
             <h2>第一步：手机扫这个码打开接收端</h2>
-            <canvas id="pairQr" width="196" height="196"></canvas>
+            <canvas id="pairQr" width="260" height="260"></canvas>
             <div class="urlbox" id="recvUrl"></div>
             <div>第二步：选文件点「开始发送」，把手机对准屏幕上的动态二维码。</div>
           </div>
@@ -548,9 +560,7 @@
       $("btnPause").onclick = togglePause;
       $("dockPause").onclick = togglePause;
 
-      function drawPairingQR() {
-        $("recvUrl").textContent = RECEIVER_URL;
-        const c = $("pairQr");
+      function paintUrlQR(c) {
         if (!c || typeof qrcode === "undefined") return;
         const ctx2 = c.getContext("2d");
         const qr = qrcode(0, "M");
@@ -569,6 +579,12 @@
             if (qr.isDark(y, x)) ctx2.fillRect((x + quiet) * mod, (y + quiet) * mod, mod, mod);
           }
         }
+      }
+
+      function drawPairingQR() {
+        if ($("recvUrl")) $("recvUrl").textContent = RECEIVER_URL;
+        paintUrlQR($("pairQr"));
+        paintUrlQR($("sidePair"));
       }
 
       window.addEventListener("keydown", (e) => {
