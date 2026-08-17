@@ -8,7 +8,7 @@
   var TYPE_SRC = 1;
   var TYPE_REP = 2;
   var HDR = 16;
-  var DESC_EVERY = 8;
+  var DESC_EVERY = 16;
   var REPAIR_CAP = 280;
   var MAX_FILE = 12 * 1024 * 1024;
 
@@ -23,10 +23,10 @@
   // Dense V16/V20 @ 24–30fps looks fast on PC but most frames fail on phone.
   // 2 large codes fill a landscape monitor; 4 tiny codes decode poorly on phones.
   var PRESETS = {
-    stable: { label: "稳定", tiles: 1, version: 11, fps: 12, hint: "单码铺满，远一点也稳" },
-    fast: { label: "高速", tiles: 2, version: 12, fps: 16, hint: "左右两大码，推荐" },
-    rush: { label: "激进", tiles: 2, version: 14, fps: 16, hint: "近距离、手稳" },
-    max: { label: "极限", tiles: 2, version: 16, fps: 15, hint: "贴屏、亮屏" }
+    stable: { label: "稳定", tiles: 1, version: 14, fps: 14, hint: "单码铺满整屏" },
+    fast: { label: "高速", tiles: 2, version: 15, fps: 18, hint: "约 18KB/s，推荐" },
+    rush: { label: "激进", tiles: 2, version: 18, fps: 18, hint: "约 25KB/s，靠近" },
+    max: { label: "极限", tiles: 2, version: 20, fps: 16, hint: "约 27KB/s，贴屏" }
   };
 
   var CRC_TABLE = (function () {

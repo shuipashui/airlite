@@ -315,10 +315,12 @@
 
       function handleHits(hits) {
         var boxes = [];
+        var n = 0;
         for (var i = 0; i < hits.length; i++) {
           var hit = hits[i];
           var bytes = bytesFromDetect(hit.bytes) || (P && P.binStrToBytes(hit.text || ""));
           if (ingest(bytes)) {
+            n++;
             decoded++;
             pingHit();
             if (hit.box) boxes.push(hit.box);
@@ -327,6 +329,7 @@
         if (boxes.length) paintOverlay(boxes);
         updateHud();
         finishIfDone();
+        return n;
       }
 
       function regionJobs(dw, dh) {
@@ -381,7 +384,8 @@
         try {
           var vw = video.videoWidth;
           var vh = video.videoHeight;
-          var boxes = [];
+          var need = (rx && rx.tiles) || 2;
+          var gotN = 0;
           if (detector) {
             try {
               var codes = await detector.detect(video);
@@ -390,11 +394,14 @@
                 var c = codes[i];
                 hits.push({ bytes: c.rawValue, text: c.rawValue, box: c.cornerPoints || null });
               }
-              if (hits.length) handleHits(hits);
+              if (hits.length) gotN = handleHits(hits);
             } catch (_) {}
           }
-          if (result) return;
-          var maxW = 1400;
+          if (result || gotN >= need) {
+            busy = false;
+            return;
+          }
+          var maxW = 1920;
           var scale = vw > maxW ? maxW / vw : 1;
           var dw = Math.max(1, (vw * scale) | 0);
           var dh = Math.max(1, (vh * scale) | 0);
