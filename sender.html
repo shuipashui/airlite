@@ -171,7 +171,8 @@
           <div class="qr-frame"><img id="sidePair" alt="接收端二维码" /></div>
         </div>
         <p class="hint">
-          右侧大码或上面小码都是接收端地址。用 Safari / Chrome 扫开，不要用微信内置浏览器。
+          接收端：<a href="https://shuipashui.github.io/airlite/receiver.html" target="_blank" rel="noopener">https://shuipashui.github.io/airlite/receiver.html</a><br>
+          用 Safari / Chrome 打开，不要用微信内置浏览器。
         </p>
       </aside>
       <main class="stage">
@@ -185,7 +186,7 @@
           <div class="pair">
             <h2>第一步：手机扫这个码打开接收端</h2>
             <div class="qr-frame"><img id="pairQr" alt="接收端二维码" /></div>
-            <div class="urlbox" id="recvUrl"></div>
+            <div class="urlbox" id="recvUrl"><a href="https://shuipashui.github.io/airlite/receiver.html" target="_blank" rel="noopener">https://shuipashui.github.io/airlite/receiver.html</a></div>
             <div>第二步：选文件点「开始发送」，把手机对准屏幕上的动态二维码。</div>
           </div>
         </div>
@@ -336,7 +337,6 @@
         let flags = 0;
         if (files.length === 1 && typeof fflate !== "undefined") {
           try {
-            const gz = fflate.gzipSync(raw, { level: 6 });
             const gz = fflate.gzipSync(raw, { level: raw.length < 1024 * 1024 ? 9 : 6 });
             if (gz.length < raw.length * 0.97) { data = gz; flags = 1; }
           } catch (_) {}
