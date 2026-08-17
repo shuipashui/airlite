@@ -38,22 +38,26 @@
       border-right: 1px solid var(--line); padding: 18px; overflow: auto;
       background: #0b0d13;
     }
-    .file-input {
-      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-      overflow: hidden; clip: rect(0, 0, 0, 0); border: 0;
+    .banner {
+      display: none; margin: 0 18px 12px; padding: 8px 10px; border-radius: 8px;
+      background: #3a1c22; color: #ffc7cd; font-size: 12px; line-height: 1.5;
     }
+    .banner.show { display: block; }
     .drop {
-      display: block; cursor: pointer;
-      border: 1.5px dashed #2d3346; border-radius: 14px; padding: 22px 16px;
+      display: block;
+      border: 1.5px dashed #2d3346; border-radius: 14px; padding: 18px 14px;
       text-align: center; background: #0e1118; transition: .15s border, .15s background;
     }
-    .drop.over, .drop:hover { border-color: var(--accent); background: #102018; }
+    .drop.over { border-color: var(--accent); background: #102018; }
     .drop strong { display: block; margin-bottom: 6px; }
     .drop .sub { color: var(--mute); font-size: 12px; display: block; margin-bottom: 12px; }
-    .drop .pick {
-      display: inline-block; pointer-events: none;
-      background: var(--accent); color: #04140d; font-weight: 700;
-      border-radius: 10px; padding: 8px 14px; font-size: 13px;
+    #file {
+      display: block; width: 100%; color: var(--text); background: var(--panel);
+      border: 1px solid var(--line); border-radius: 10px; padding: 8px;
+    }
+    .picked {
+      margin-top: 10px; text-align: left; font-size: 12px; color: var(--accent);
+      word-break: break-all; min-height: 1.4em;
     }
     .row { margin-top: 16px; }
     label.k { display: block; color: var(--mute); font-size: 12px; margin-bottom: 6px; }
@@ -113,12 +117,13 @@
     </header>
     <div class="wrap">
       <aside>
-        <input id="file" class="file-input" type="file" multiple />
-        <label class="drop" id="drop" for="file">
-          <strong>拖入文件，或点击选择</strong>
-          <span class="sub">多文件自动打成 zip · 文本也可直接发送</span>
-          <span class="pick">选择文件</span>
-        </label>
+        <div class="banner" id="errBanner"></div>
+        <div class="drop" id="drop">
+          <strong>把文件拖到这个窗口任意位置</strong>
+          <span class="sub">或直接用下面的系统选择框，点「打开」后应立刻出现文件名</span>
+          <input id="file" type="file" multiple />
+          <div class="picked" id="picked">还没有选中文件</div>
+        </div>
         <div class="row">
           <label class="k">或粘贴文字</label>
           <textarea id="text" placeholder="把文字贴在这里，点「发送文字」"></textarea>
@@ -162,16 +167,12 @@
   <script src="protocol.js"></script>
   <script>
     (function () {
-      if (typeof AirLite === "undefined" || typeof qrcode === "undefined" || typeof fflate === "undefined") {
-        alert("发送端脚本没有加载成功。请打开本地文件夹里的 sender.html，不要只打开单独一个文件，也不要从 GitHub 网页预览里用。");
-        return;
-      }
-      const P = AirLite;
       const $ = (id) => document.getElementById(id);
       const fileInput = $("file");
       const drop = $("drop");
       const canvas = $("qrStage");
       const ctx = canvas.getContext("2d", { alpha: false });
+      const P = typeof AirLite !== "undefined" ? AirLite : null;
 
       let presetKey = "rush";
       let files = [];
@@ -190,18 +191,15 @@
         tileSeq: 0
       };
 
-      function renderPresets() {
-        const box = $("presets");
-        box.innerHTML = "";
-        Object.keys(P.PRESETS).forEach((key) => {
-          const p = P.PRESETS[key];
-          const b = document.createElement("button");
-          b.className = "preset" + (key === presetKey ? " on" : "");
-          b.innerHTML = "<b>" + p.label + "</b><small>" + p.tiles + "码 · V" + p.version + " · " + p.fps + "fps<br>" + p.hint + "</small>";
-          b.onclick = () => { presetKey = key; renderPresets(); updateMeta(); };
-          box.appendChild(b);
-        });
+      function showErr(msg) {
+        const el = $("errBanner");
+        el.textContent = msg;
+        el.classList.add("show");
       }
+
+      window.addEventListener("error", (e) => {
+        showErr("脚本错误：" + (e.message || e));
+      });
 
       function fmtBytes(n) {
         if (n < 1024) return n + " B";
@@ -209,79 +207,101 @@
         return (n / 1048576).toFixed(2) + " MB";
       }
 
-      function theoSpeed() {
-        const p = P.PRESETS[presetKey];
-        const payload = P.chunkSizeForVersion(p.version);
-        return p.tiles * payload * p.fps;
-      }
-
       function updateMeta() {
-        const p = P.PRESETS[presetKey];
         const names = files.map((f) => f.name).join("、") || "未选文件";
-        const size = files.reduce((s, f) => s + f.size, 0);
+        const size = files.reduce((s, f) => s + (f.size || 0), 0);
+        $("picked").textContent = files.length
+          ? ("已选 " + files.length + " 个：" + names + "（" + fmtBytes(size) + "）")
+          : "还没有选中文件";
+        if (!P) {
+          $("meta").textContent = "文件已选中，但发送库未加载。请用「打开发送端.bat」打开，或打开完整文件夹里的 sender.html。";
+          return;
+        }
+        const p = P.PRESETS[presetKey];
         $("meta").innerHTML =
           "文件：<b>" + names + "</b><br>" +
           "大小：<b>" + fmtBytes(size) + "</b>" + (files.length > 1 ? "（将打包 zip）" : "") + "<br>" +
-          "预设：<b>" + p.label + "</b> · 理论峰值 <b>" + fmtBytes(theoSpeed()) + "/s</b><br>" +
+          "预设：<b>" + p.label + "</b> · 理论峰值 <b>" + fmtBytes(p.tiles * P.chunkSizeForVersion(p.version) * p.fps) + "/s</b><br>" +
           "喷泉码：源符号发完后持续发不重复修复符号";
       }
 
       function takeFiles(list) {
-        files = Array.from(list || []).filter((f) => f && f.size >= 0 && f.name);
+        const next = Array.from(list || []).filter((f) => f && f.name);
+        if (!next.length) {
+          $("picked").textContent = "没有拿到文件，请再选一次";
+          return;
+        }
+        files = next;
         updateMeta();
       }
 
-      drop.addEventListener("dragover", (e) => {
+      function allowDrag(e) {
         e.preventDefault();
-        e.stopPropagation();
+        e.dataTransfer && (e.dataTransfer.dropEffect = "copy");
         drop.classList.add("over");
+      }
+
+      document.addEventListener("dragenter", allowDrag);
+      document.addEventListener("dragover", allowDrag);
+      document.addEventListener("dragleave", (e) => {
+        if (e.target === document || e.target === document.body) drop.classList.remove("over");
       });
-      drop.addEventListener("dragleave", (e) => {
+      document.addEventListener("drop", (e) => {
         e.preventDefault();
         drop.classList.remove("over");
+        const list = e.dataTransfer && e.dataTransfer.files;
+        if (list && list.length) takeFiles(list);
       });
-      drop.addEventListener("drop", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        drop.classList.remove("over");
-        takeFiles(e.dataTransfer && e.dataTransfer.files);
-      });
-      fileInput.addEventListener("click", (e) => {
-        e.stopPropagation();
-        fileInput.value = "";
-      });
-      fileInput.addEventListener("change", () => {
-        takeFiles(fileInput.files);
-      });
+
+      fileInput.addEventListener("change", () => takeFiles(fileInput.files));
+      fileInput.addEventListener("input", () => takeFiles(fileInput.files));
+
+      function renderPresets() {
+        const box = $("presets");
+        box.innerHTML = "";
+        if (!P) {
+          box.textContent = "发送库未加载";
+          return;
+        }
+        Object.keys(P.PRESETS).forEach((key) => {
+          const p = P.PRESETS[key];
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "preset" + (key === presetKey ? " on" : "");
+          b.innerHTML = "<b>" + p.label + "</b><small>" + p.tiles + "码 · V" + p.version + " · " + p.fps + "fps<br>" + p.hint + "</small>";
+          b.onclick = () => { presetKey = key; renderPresets(); updateMeta(); };
+          box.appendChild(b);
+        });
+      }
 
       async function packPayload(kind) {
         if (kind === "text") {
           const text = $("text").value;
           if (!text.trim()) throw new Error("请先输入文字");
           const raw = P.utf8Encode(text);
-          const gz = fflate.gzipSync(raw, { level: 6 });
-          const useGz = gz.length < raw.length;
-          return {
-            name: "note.txt",
-            data: useGz ? gz : raw,
-            flags: useGz ? 1 : 0,
-            rawSize: raw.length
-          };
+          if (typeof fflate !== "undefined") {
+            const gz = fflate.gzipSync(raw, { level: 6 });
+            const useGz = gz.length < raw.length;
+            return { name: "note.txt", data: useGz ? gz : raw, flags: useGz ? 1 : 0, rawSize: raw.length };
+          }
+          return { name: "note.txt", data: raw, flags: 0, rawSize: raw.length };
         }
         if (!files.length) throw new Error("请先选择文件");
         let name, raw;
         if (files.length === 1) {
           name = files[0].name;
           raw = new Uint8Array(await files[0].arrayBuffer());
-        } else {
+        } else if (typeof fflate !== "undefined") {
           const bag = {};
           for (const f of files) bag[f.name] = new Uint8Array(await f.arrayBuffer());
           raw = fflate.zipSync(bag, { level: 6 });
           name = "bundle.zip";
+        } else {
+          throw new Error("多文件需要压缩库。请用「打开发送端.bat」打开完整目录。");
         }
         let data = raw;
         let flags = 0;
-        if (files.length === 1) {
+        if (files.length === 1 && typeof fflate !== "undefined") {
           try {
             const gz = fflate.gzipSync(raw, { level: 6 });
             if (gz.length < raw.length * 0.97) { data = gz; flags = 1; }
@@ -389,6 +409,9 @@
       }
 
       async function startPlay(kind) {
+        if (!P || typeof qrcode === "undefined") {
+          throw new Error("发送库没加载。请双击「打开发送端.bat」，不要只打开单独一个 HTML。");
+        }
         stopPlay();
         const packed = await packPayload(kind);
         const p = P.PRESETS[presetKey];
@@ -468,6 +491,9 @@
       fit();
       renderPresets();
       updateMeta();
+      if (!P || typeof qrcode === "undefined") {
+        showErr("发送库没有加载。请双击同目录「打开发送端.bat」，或确保 vendor 文件夹和 protocol.js 都在。");
+      }
     })();
   </script>
 </body>
