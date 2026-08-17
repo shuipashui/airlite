@@ -14,7 +14,7 @@
     var session = 0x12345678;
     var desc = P.buildDescriptor({
       session: session, name: "probe.bin", fileSize: raw.length,
-      fileCrc: P.crc32(raw), chunkSize: chunkSize, numChunks: chunks.length, flags: 0
+      fileCrc: P.crc32(raw), chunkSize: chunkSize, numChunks: chunks.length, flags: 0, tiles: 4
     });
     var rx = new P.FountainRx();
     var parsed = P.parseFrame(desc);

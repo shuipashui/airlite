@@ -28,6 +28,11 @@
       position: absolute; inset: 0; width: 100%; height: 100%;
       pointer-events: none; background: transparent; z-index: 1;
     }
+    .flash {
+      position: absolute; inset: 0; z-index: 2; pointer-events: none;
+      background: rgba(61,255,176,.12); opacity: 0; transition: opacity .12s;
+    }
+    .flash.on { opacity: 1; }
     .top, .bot {
       position: absolute; left: 0; right: 0; z-index: 3;
       padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
@@ -70,6 +75,7 @@
   <div class="view">
     <video id="video" playsinline webkit-playsinline muted autoplay></video>
     <canvas class="overlay" id="overlay"></canvas>
+    <div class="flash" id="flash"></div>
     <div class="top">
       <div class="brand">
         <h1>光渡 · 接收</h1>
@@ -90,7 +96,7 @@
         </div>
         <div class="done" id="doneBox">
           <div class="row">
-            <button class="btn" type="button" id="btnSave">保存文件</button>
+            <button class="btn" type="button" id="btnSave">保存 / 分享</button>
             <button class="btn ghost" type="button" id="btnCopy" hidden>复制文字</button>
           </div>
         </div>
@@ -104,9 +110,9 @@
     <div class="gate" id="gate">
       <div class="box">
         <h2>打开摄像头开始接收</h2>
-        <p>用手机浏览器打开本页，对准电脑屏幕上正在播放的二维码。传文件本身不走网络。</p>
+        <p>用 Safari / Chrome 打开本页，对准电脑正在播放的二维码。传文件本身不走网络。</p>
         <p class="warn" id="secureWarn" hidden></p>
-        <p class="warn" id="appWarn" hidden>检测到微信/QQ 内置浏览器，通常无法开摄像头。请点右上角 <b>…</b>，选「在浏览器中打开」（Safari / Chrome）。</p>
+        <p class="warn" id="appWarn" hidden>检测到微信/QQ 内置浏览器，通常无法开摄像头。请点右上角 <b>…</b>，选「在浏览器中打开」。</p>
         <div class="row"><button class="btn" type="button" id="btnStart">授权并打开摄像头</button></div>
         <p id="err" class="err"></p>
         <p id="pageLink" hidden>正确地址：<a class="link" id="httpsLink" href="#"></a></p>
@@ -127,6 +133,7 @@
       var P = window.AirLite;
       var ua = navigator.userAgent || "";
       var inApp = /MicroMessenger|QQ\//i.test(ua) || /miniProgram|DingTalk|BytedanceWebview|Aweme/i.test(ua);
+      var isiOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
       var secure = window.isSecureContext === true;
       var rx = P ? new P.FountainRx() : null;
 
@@ -144,6 +151,12 @@
       var wctx = workCanvas.getContext("2d", { willReadFrequently: true });
       var running = false;
       var scanSeq = 0;
+      var worker = null;
+      var workerOk = true;
+      var jobId = 0;
+      var lastHit = 0;
+      var wake = null;
+      var lastBoxes = [];
 
       video.setAttribute("playsinline", "true");
       video.setAttribute("webkit-playsinline", "true");
@@ -153,14 +166,31 @@
 
       $("httpsLink").href = RECEIVER;
       $("httpsLink").textContent = RECEIVER;
-
       if (!secure) {
         $("secureWarn").hidden = false;
         $("secureWarn").innerHTML = "当前页面不是 HTTPS，手机浏览器会禁止摄像头。<br>请用手机点击打开：";
         $("pageLink").hidden = false;
       }
       if (inApp) $("appWarn").hidden = false;
-      if (!P) $("err").textContent = "协议脚本没加载到。请从 GitHub 网页打开接收端，不要只保存单个 HTML。";
+      if (!P) $("err").textContent = "协议脚本没加载到。请从 GitHub 网页打开接收端。";
+
+      try {
+        worker = new Worker("decode-worker.js");
+        worker.onmessage = function (ev) {
+          var msg = ev.data || {};
+          if (msg.type === "noscript") {
+            workerOk = false;
+            return;
+          }
+          if (msg.type !== "result") return;
+          workerOk = true;
+          busy = false;
+          handleHits(msg.hits || []);
+        };
+        worker.onerror = function () { workerOk = false; };
+      } catch (_) {
+        worker = null;
+      }
 
       function fmtBytes(n) {
         if (n < 1024) return n + " B";
@@ -188,10 +218,18 @@
         if (frame.session !== rx.session) return false;
         if (frame.type === P.TYPE_SRC) rx.addSource(frame.extra, frame.payload);
         else if (frame.type === P.TYPE_REP) rx.addRepair(frame.extra, frame.payload);
+        else return false;
         return true;
       }
 
+      function pingHit() {
+        lastHit = performance.now();
+        $("flash").classList.add("on");
+        setTimeout(function () { $("flash").classList.remove("on"); }, 80);
+      }
+
       function paintOverlay(boxes) {
+        lastBoxes = boxes || lastBoxes;
         var w = overlay.width = overlay.clientWidth || window.innerWidth || 1;
         var h = overlay.height = overlay.clientHeight || window.innerHeight || 1;
         octx.clearRect(0, 0, w, h);
@@ -202,7 +240,7 @@
         var oy = (h - vh * scale) / 2;
         octx.strokeStyle = "#3dffb0";
         octx.lineWidth = 3;
-        (boxes || []).forEach(function (b) {
+        (lastBoxes || []).forEach(function (b) {
           if (!b || !b.length) return;
           octx.beginPath();
           octx.moveTo(ox + b[0].x * scale, oy + b[0].y * scale);
@@ -213,11 +251,14 @@
       }
 
       function updateHud() {
+        var now = performance.now();
         if (!rx || !rx.ready) {
           $("fileName").textContent = "正在寻找描述符帧…对准屏幕";
           $("prog").textContent = "0 / ?";
           $("bar").style.width = "0%";
-          $("detail").textContent = "解码 " + decoded + " 帧有效";
+          var hint = "解码 " + decoded + " 帧有效";
+          if (running && now - lastHit > 4000 && lastHit) hint = "还没稳定扫到码：靠近、提高屏幕亮度、改用「高速」";
+          $("detail").textContent = hint;
         } else {
           var pct = rx.numChunks ? (rx.got / rx.numChunks) * 100 : 0;
           $("fileName").textContent = rx.name || "未命名";
@@ -226,7 +267,6 @@
           $("detail").textContent = "源 " + rx.seenSrc + " · 修复 " + rx.seenRep + " · 描述符 " + rx.seenDesc;
         }
         $("fps").textContent = decodeFps.toFixed(0) + " 解/秒";
-        var now = performance.now();
         if (lastT) {
           var dt = (now - lastT) / 1000;
           var db = (rx ? rx.got * (rx.chunkSize || 0) : 0) - lastBytes;
@@ -273,31 +313,62 @@
         try { navigator.vibrate && navigator.vibrate([40, 40, 80]); } catch (_) {}
       }
 
-      function scanWithJsQR(w, h) {
-        if (typeof jsQR !== "function") return [];
-        var hw = (w / 2) | 0, hh = (h / 2) | 0;
-        var jobs = [
-          { x: 0, y: 0, w: w, h: h },
+      function handleHits(hits) {
+        var boxes = [];
+        for (var i = 0; i < hits.length; i++) {
+          var hit = hits[i];
+          var bytes = bytesFromDetect(hit.bytes) || (P && P.binStrToBytes(hit.text || ""));
+          if (ingest(bytes)) {
+            decoded++;
+            pingHit();
+            if (hit.box) boxes.push(hit.box);
+          }
+        }
+        if (boxes.length) paintOverlay(boxes);
+        updateHud();
+        finishIfDone();
+      }
+
+      function regionJobs(dw, dh) {
+        var hw = (dw / 2) | 0, hh = (dh / 2) | 0;
+        var all = [
+          { x: 0, y: 0, w: dw, h: dh },
           { x: 0, y: 0, w: hw, h: hh },
-          { x: hw, y: 0, w: w - hw, h: hh },
-          { x: 0, y: hh, w: hw, h: h - hh },
-          { x: hw, y: hh, w: w - hw, h: h - hh }
+          { x: hw, y: 0, w: dw - hw, h: hh },
+          { x: 0, y: hh, w: hw, h: dh - hh },
+          { x: hw, y: hh, w: dw - hw, h: dh - hh }
         ];
-        var j = jobs[scanSeq % jobs.length];
+        var tiles = (rx && rx.tiles) || 4;
+        var pick = tiles >= 4 ? [all[scanSeq % 5]] : [all[0]];
+        if (tiles >= 4 && scanSeq % 2 === 0) pick = [all[0]];
         scanSeq++;
-        var slice = wctx.getImageData(j.x, j.y, j.w, j.h);
-        var code = jsQR(slice.data, j.w, j.h, { inversionAttempts: "dontInvert" });
-        if (!code) return [];
-        var bytes = bytesFromDetect(code.binaryData) || (P && P.binStrToBytes(code.data || ""));
-        if (!ingest(bytes)) return [];
-        decoded++;
-        if (!code.location) return [];
-        return [[
-          { x: code.location.topLeftCorner.x + j.x, y: code.location.topLeftCorner.y + j.y },
-          { x: code.location.topRightCorner.x + j.x, y: code.location.topRightCorner.y + j.y },
-          { x: code.location.bottomRightCorner.x + j.x, y: code.location.bottomRightCorner.y + j.y },
-          { x: code.location.bottomLeftCorner.x + j.x, y: code.location.bottomLeftCorner.y + j.y }
-        ]];
+        return pick;
+      }
+
+      function sliceJob(job) {
+        var img = wctx.getImageData(job.x, job.y, job.w, job.h);
+        return { x: job.x, y: job.y, w: job.w, h: job.h, data: img.data };
+      }
+
+      function scanLocal(jobs) {
+        if (typeof jsQR !== "function") return [];
+        var hits = [];
+        for (var i = 0; i < jobs.length; i++) {
+          var j = jobs[i];
+          var code = jsQR(j.data, j.w, j.h, { inversionAttempts: "dontInvert" });
+          if (!code) continue;
+          hits.push({
+            bytes: code.binaryData || [],
+            text: code.data || "",
+            box: code.location ? [
+              { x: code.location.topLeftCorner.x + j.x, y: code.location.topLeftCorner.y + j.y },
+              { x: code.location.topRightCorner.x + j.x, y: code.location.topRightCorner.y + j.y },
+              { x: code.location.bottomRightCorner.x + j.x, y: code.location.bottomRightCorner.y + j.y },
+              { x: code.location.bottomLeftCorner.x + j.x, y: code.location.bottomLeftCorner.y + j.y }
+            ] : null
+          });
+        }
+        return hits;
       }
 
       async function scanFrame() {
@@ -310,33 +381,33 @@
           if (detector) {
             try {
               var codes = await detector.detect(video);
+              var hits = [];
               for (var i = 0; i < codes.length; i++) {
                 var c = codes[i];
-                if (ingest(bytesFromDetect(c.rawValue))) {
-                  decoded++;
-                  if (c.cornerPoints) boxes.push(c.cornerPoints);
-                }
+                hits.push({ bytes: c.rawValue, text: c.rawValue, box: c.cornerPoints || null });
               }
+              if (hits.length) handleHits(hits);
             } catch (_) {}
           }
-          if (!rx || !rx.ready || boxes.length < 2) {
-            var maxW = 1280;
-            var scale = vw > maxW ? maxW / vw : 1;
-            var dw = Math.max(1, (vw * scale) | 0);
-            var dh = Math.max(1, (vh * scale) | 0);
-            if (workCanvas.width !== dw || workCanvas.height !== dh) {
-              workCanvas.width = dw;
-              workCanvas.height = dh;
-            }
-            wctx.drawImage(video, 0, 0, dw, dh);
-            var more = scanWithJsQR(dw, dh);
-            for (var k = 0; k < more.length; k++) boxes.push(more[k]);
+          if (result) return;
+          var maxW = 1400;
+          var scale = vw > maxW ? maxW / vw : 1;
+          var dw = Math.max(1, (vw * scale) | 0);
+          var dh = Math.max(1, (vh * scale) | 0);
+          if (workCanvas.width !== dw || workCanvas.height !== dh) {
+            workCanvas.width = dw;
+            workCanvas.height = dh;
           }
-          paintOverlay(boxes);
-          updateHud();
-          finishIfDone();
+          wctx.drawImage(video, 0, 0, dw, dh);
+          var jobs = regionJobs(dw, dh).map(sliceJob);
+          if (worker && workerOk !== false) {
+            jobId++;
+            worker.postMessage({ type: "scan", id: jobId, jobs: jobs });
+            return;
+          }
+          handleHits(scanLocal(jobs));
         } finally {
-          busy = false;
+          if (!worker || workerOk === false) busy = false;
         }
       }
 
@@ -373,13 +444,16 @@
         ];
         var last = null;
         for (var i = 0; i < tries.length; i++) {
-          try {
-            return await md.getUserMedia(tries[i]);
-          } catch (e) {
-            last = e;
-          }
+          try { return await md.getUserMedia(tries[i]); }
+          catch (e) { last = e; }
         }
         throw last || new Error("getUserMedia failed");
+      }
+
+      async function lockScreen() {
+        try {
+          if (navigator.wakeLock) wake = await navigator.wakeLock.request("screen");
+        } catch (_) {}
       }
 
       async function startCam() {
@@ -414,7 +488,9 @@
           if ("BarcodeDetector" in window) {
             try { detector = new BarcodeDetector({ formats: ["qr_code"] }); } catch (_) { detector = null; }
           }
+          lastHit = performance.now();
           running = true;
+          lockScreen();
           loop();
         } catch (e) {
           $("err").textContent = explainCamError(e);
@@ -428,6 +504,7 @@
         decoded = 0;
         lastBytes = 0;
         lastT = 0;
+        lastBoxes = [];
         $("doneBox").classList.remove("show");
         $("btnCopy").hidden = true;
         $("fileName").textContent = "对准电脑屏幕上的二维码";
@@ -436,23 +513,36 @@
         $("detail").textContent = "会话已重置";
       }
 
+      async function saveFile() {
+        if (!result) return;
+        var file = new File([result.data], result.name, { type: "application/octet-stream" });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({ files: [file], title: result.name });
+            return;
+          } catch (e) {
+            if (e && e.name === "AbortError") return;
+          }
+        }
+        var blob = new Blob([result.data], { type: "application/octet-stream" });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = result.name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        if (isiOS) $("detail").textContent = "若没有下载框，请用「分享」把文件存到文件 App";
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      }
+
       $("btnStart").onclick = startCam;
       $("btnFlip").onclick = function () {
         preferBack = !preferBack;
         startCam();
       };
       $("btnReset").onclick = resetRx;
-      $("btnSave").onclick = function () {
-        if (!result) return;
-        var blob = new Blob([result.data], { type: "application/octet-stream" });
-        var a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = result.name;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
-      };
+      $("btnSave").onclick = function () { saveFile(); };
       $("btnCopy").onclick = async function () {
         if (!result) return;
         var text = new TextDecoder().decode(result.data);
@@ -474,6 +564,16 @@
         var on = !track.getSettings().torch;
         try { await track.applyConstraints({ advanced: [{ torch: on }] }); } catch (_) {}
       };
+
+      document.addEventListener("visibilitychange", function () {
+        if (document.hidden) {
+          running = false;
+        } else if (stream && !result) {
+          running = true;
+          lockScreen();
+          loop();
+        }
+      });
     })();
   </script>
 </body>

@@ -8,6 +8,9 @@
   var TYPE_SRC = 1;
   var TYPE_REP = 2;
   var HDR = 16;
+  var DESC_EVERY = 8;
+  var REPAIR_CAP = 280;
+  var MAX_FILE = 12 * 1024 * 1024;
 
   // QR version → max binary payload (EC-L), bytes
   var QR_CAP_L = [
@@ -164,7 +167,8 @@
     writeU32(buf, 20, meta.fileCrc);
     writeU16(buf, 24, meta.chunkSize);
     writeU32(buf, 26, meta.numChunks);
-    buf[30] = meta.flags & 0xff;
+    var flags = (meta.flags & 0x0f) | (((meta.tiles || 0) & 7) << 4);
+    buf[30] = flags;
     buf[31] = nameBytes.length;
     buf.set(nameBytes, 32);
     sealCrc(buf);
@@ -209,6 +213,7 @@
         chunkSize: readU16(payload, 8),
         numChunks: readU32(payload, 10),
         flags: payload[14],
+        tiles: (payload[14] >> 4) & 7,
         name: utf8Decode(payload.subarray(16, 16 + nameLen))
       };
     }
@@ -260,10 +265,12 @@
     this.chunkSize = 0;
     this.numChunks = 0;
     this.flags = 0;
+    this.tiles = 0;
     this.name = "";
     this.symbols = Object.create(null);
     this.got = 0;
     this.repairs = [];
+    this.seenSeeds = Object.create(null);
     this.seenSrc = 0;
     this.seenRep = 0;
     this.seenDesc = 0;
@@ -282,6 +289,7 @@
     this.chunkSize = d.chunkSize;
     this.numChunks = d.numChunks;
     this.flags = d.flags;
+    this.tiles = d.tiles || 0;
     this.name = d.name;
     this.seenDesc = 1;
   };
@@ -300,10 +308,13 @@
 
   FountainRx.prototype.addRepair = function (seed, payload) {
     if (!this.ready || this.numChunks <= 0) return;
+    if (this.seenSeeds[seed]) return;
+    this.seenSeeds[seed] = 1;
     this.seenRep++;
     var data = new Uint8Array(this.chunkSize);
     data.set(payload.subarray(0, Math.min(payload.length, this.chunkSize)));
     this.repairs.push({ idxs: mixIndices(seed, this.numChunks).slice(), data: data });
+    if (this.repairs.length > REPAIR_CAP) this.repairs.splice(0, this.repairs.length - REPAIR_CAP);
     this.peel();
   };
 
@@ -356,6 +367,8 @@
     TYPE_SRC: TYPE_SRC,
     TYPE_REP: TYPE_REP,
     HDR: HDR,
+    DESC_EVERY: DESC_EVERY,
+    MAX_FILE: MAX_FILE,
     QR_CAP_L: QR_CAP_L,
     PRESETS: PRESETS,
     crc32: crc32,

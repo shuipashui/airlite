@@ -313,6 +313,33 @@
         return { name, data, flags, rawSize: raw.length };
       }
 
+      const qrScratch = document.createElement("canvas");
+
+      function rasterQR(payload, version) {
+        const qr = qrcode(version, "L");
+        qr.addData(P.bytesToBinStr(payload), "Byte");
+        qr.make();
+        const n = qr.getModuleCount();
+        if (qrScratch.width !== n || qrScratch.height !== n) {
+          qrScratch.width = n;
+          qrScratch.height = n;
+        }
+        const g = qrScratch.getContext("2d", { alpha: false });
+        const img = g.createImageData(n, n);
+        const px = img.data;
+        for (let y = 0; y < n; y++) {
+          for (let x = 0; x < n; x++) {
+            const on = qr.isDark(y, x);
+            const i = (y * n + x) * 4;
+            const v = on ? 0 : 255;
+            px[i] = px[i + 1] = px[i + 2] = v;
+            px[i + 3] = 255;
+          }
+        }
+        g.putImageData(img, 0, 0);
+        return { canvas: qrScratch, n: n };
+      }
+
       function drawFrame(payloads, version) {
         const dpr = window.devicePixelRatio || 1;
         const w = canvas.clientWidth || canvas.parentElement.clientWidth;
@@ -340,44 +367,45 @@
         for (let i = 0; i < n; i++) {
           const col = i % cols;
           const row = Math.floor(i / cols);
-          const qr = qrcode(version, "L");
-          qr.addData(P.bytesToBinStr(payloads[i]), "Byte");
-          qr.make();
-          const count = qr.getModuleCount();
+          const ras = rasterQR(payloads[i], version);
           const quiet = n === 1 ? 8 : 6;
-          const total = count + quiet * 2;
+          const total = ras.n + quiet * 2;
           const mod = Math.max(2, Math.floor(cell / total));
           const size = total * mod;
           const ox = padX + col * (cellW + gap) + Math.floor((cellW - size) / 2);
           const oy = padY + row * (cellH + gap) + Math.floor((cellH - size) / 2);
           ctx.fillStyle = "#fff";
           ctx.fillRect(ox, oy, size, size);
-          ctx.fillStyle = "#000";
-          for (let y = 0; y < count; y++) {
-            for (let x = 0; x < count; x++) {
-              if (qr.isDark(y, x)) ctx.fillRect(ox + (x + quiet) * mod, oy + (y + quiet) * mod, mod, mod);
-            }
-          }
+          ctx.drawImage(
+            ras.canvas, 0, 0, ras.n, ras.n,
+            ox + quiet * mod, oy + quiet * mod, ras.n * mod, ras.n * mod
+          );
         }
       }
 
       function nextPayloads() {
         const p = P.PRESETS[presetKey];
+        const every = P.DESC_EVERY || 8;
+        const k = session.chunks.length;
         const out = [];
         for (let t = 0; t < p.tiles; t++) {
           const seq = session.tileSeq++;
-          if (seq % 13 === 0) {
+          if (seq % every === 0) {
             out.push(session.desc);
             continue;
           }
-          if (session.srcEsi < session.chunks.length) {
+          if (session.srcEsi < k) {
             const esi = session.srcEsi++;
             out.push(P.buildSource(session.meta.session, esi, session.chunks[esi]));
+            continue;
+          }
+          const seed = session.repairSeed++;
+          if (seed === 0) session.repairSeed = 1;
+          if (seed % 4 === 0) {
+            const esi = ((seed / 4) | 0) % k;
+            out.push(P.buildSource(session.meta.session, esi, session.chunks[esi]));
           } else {
-            const seed = session.repairSeed++;
-            if (seed === 0) session.repairSeed = 1;
-            const pay = P.makeRepairPayload(session.chunks, seed);
-            out.push(P.buildRepair(session.meta.session, seed, pay));
+            out.push(P.buildRepair(session.meta.session, seed, P.makeRepairPayload(session.chunks, seed)));
           }
         }
         return out;
@@ -419,7 +447,23 @@
           throw new Error("发送库没加载。请双击「打开发送端.bat」，不要只打开单独一个 HTML。");
         }
         stopPlay();
-        const packed = await packPayload(kind);
+        $("btnSend").disabled = true;
+        $("btnText").disabled = true;
+        let packed;
+        try {
+          packed = await packPayload(kind);
+        } finally {
+          $("btnSend").disabled = false;
+          $("btnText").disabled = false;
+        }
+        const limit = P.MAX_FILE || 12 * 1024 * 1024;
+        if (packed.data.length > limit) {
+          throw new Error("压缩后仍超过 " + fmtBytes(limit) + "，手机网页接收会很慢且容易中断。请改小文件或拆开再发。");
+        }
+        if (packed.data.length > 2 * 1024 * 1024) {
+          const ok = confirm("压缩后约 " + fmtBytes(packed.data.length) + "，手机网页接收可能要几分钟。仍要发送吗？");
+          if (!ok) return;
+        }
         const p = P.PRESETS[presetKey];
         const chunkSize = P.chunkSizeForVersion(p.version);
         if (chunkSize < 32) throw new Error("块太小");
@@ -432,7 +476,8 @@
           fileCrc: P.crc32(packed.data),
           chunkSize: chunkSize,
           numChunks: chunks.length,
-          flags: packed.flags
+          flags: packed.flags,
+          tiles: p.tiles
         };
         session = {
           meta: meta,
