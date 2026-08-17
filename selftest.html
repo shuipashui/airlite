@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<meta charset="UTF-8" />
+<title>selftest</title>
+<pre id="out">running...</pre>
+<script src="protocol.js"></script>
+<script>
+  function assert(cond, msg) { if (!cond) throw new Error(msg); }
+  try {
+    var P = AirLite;
+    var raw = new Uint8Array(50 * 1024);
+    for (var i = 0; i < raw.length; i++) raw[i] = (i * 17 + 3) & 0xff;
+    var chunkSize = P.chunkSizeForVersion(16);
+    var chunks = P.splitChunks(raw, chunkSize);
+    var session = 0x12345678;
+    var desc = P.buildDescriptor({
+      session: session, name: "probe.bin", fileSize: raw.length,
+      fileCrc: P.crc32(raw), chunkSize: chunkSize, numChunks: chunks.length, flags: 0
+    });
+    var rx = new P.FountainRx();
+    var parsed = P.parseFrame(desc);
+    assert(parsed && parsed.type === P.TYPE_DESC, "desc");
+    rx.applyDesc(parsed);
+    var dropped = 0;
+    for (var esi = 0; esi < chunks.length; esi++) {
+      if (esi % 6 === 0) { dropped++; continue; }
+      var src = P.buildSource(session, esi, chunks[esi]);
+      var f = P.parseFrame(src);
+      rx.addSource(f.extra, f.payload);
+    }
+    var seed = 1, guard = 0;
+    while (!rx.complete() && guard++ < 4000) {
+      var pay = P.makeRepairPayload(chunks, seed);
+      var fr = P.parseFrame(P.buildRepair(session, seed, pay));
+      rx.addRepair(fr.extra, fr.payload);
+      seed++;
+    }
+    assert(rx.complete(), "incomplete " + rx.got + "/" + rx.numChunks);
+    var out = rx.assemble();
+    assert(out && !out.error, "crc");
+    assert(out.data.length === raw.length, "size");
+    for (var j = 0; j < raw.length; j++) if (out.data[j] !== raw[j]) throw new Error("mismatch " + j);
+    var bad = P.buildSource(session, 1, chunks[1]);
+    bad[20] ^= 0xff;
+    assert(P.parseFrame(bad) === null, "crc drop");
+    document.getElementById("out").textContent =
+      "OK chunks=" + chunks.length + " dropped=" + dropped + " repairs=" + (seed - 1) + " chunk=" + chunkSize;
+    document.title = "OK";
+  } catch (e) {
+    document.getElementById("out").textContent = "FAIL " + e.message;
+    document.title = "FAIL";
+  }
+</script>

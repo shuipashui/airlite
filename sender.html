@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>光渡 · 电脑发送端</title>
+  <style>
+    :root {
+      --bg: #07080c;
+      --panel: #11131a;
+      --line: #232736;
+      --text: #e8eaef;
+      --mute: #8b90a1;
+      --accent: #3dffb0;
+      --accent-dim: #1a6b4d;
+      --warn: #ffb020;
+      --danger: #ff5d6c;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+    button, select, input, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .app { min-height: 100%; display: flex; flex-direction: column; }
+    header.top {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 22px; border-bottom: 1px solid var(--line);
+    }
+    .brand { display: flex; gap: 12px; align-items: center; }
+    .logo {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(145deg, var(--accent), #2a8cff);
+      display: grid; place-items: center; color: #04140d; font-weight: 800;
+    }
+    .brand h1 { margin: 0; font-size: 18px; letter-spacing: .04em; }
+    .brand p { margin: 2px 0 0; color: var(--mute); font-size: 12px; }
+    .wrap { flex: 1; display: grid; grid-template-columns: 340px 1fr; min-height: 0; }
+    aside {
+      border-right: 1px solid var(--line); padding: 18px; overflow: auto;
+      background: #0b0d13;
+    }
+    .drop {
+      border: 1.5px dashed #2d3346; border-radius: 14px; padding: 22px 16px;
+      text-align: center; background: #0e1118; transition: .15s border, .15s background;
+    }
+    .drop.over, .drop:hover { border-color: var(--accent); background: #102018; }
+    .drop strong { display: block; margin-bottom: 6px; }
+    .drop span { color: var(--mute); font-size: 12px; }
+    .row { margin-top: 16px; }
+    label.k { display: block; color: var(--mute); font-size: 12px; margin-bottom: 6px; }
+    select, textarea, input[type="text"] {
+      width: 100%; background: var(--panel); color: var(--text);
+      border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px;
+    }
+    textarea { min-height: 84px; resize: vertical; }
+    .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .preset {
+      text-align: left; background: var(--panel); color: var(--text);
+      border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px;
+    }
+    .preset.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+    .preset b { display: block; font-size: 13px; }
+    .preset small { color: var(--mute); }
+    .actions { display: flex; gap: 8px; margin-top: 16px; }
+    .btn {
+      flex: 1; border: 0; border-radius: 10px; padding: 11px 12px; font-weight: 650;
+    }
+    .btn.primary { background: var(--accent); color: #04140d; }
+    .btn.ghost { background: #1a1e2a; color: var(--text); }
+    .meta { margin-top: 14px; font-size: 12px; color: var(--mute); line-height: 1.65; }
+    .meta b { color: var(--text); font-weight: 600; }
+    main.stage { position: relative; display: grid; place-items: center; background: #000; overflow: hidden; }
+    #qrStage { width: 100%; height: 100%; display: block; }
+    .hud {
+      position: absolute; left: 16px; right: 16px; bottom: 16px;
+      display: flex; justify-content: space-between; align-items: flex-end;
+      pointer-events: none; text-shadow: 0 1px 8px #000;
+    }
+    .hud .bar { height: 6px; background: #222; border-radius: 99px; overflow: hidden; margin-top: 8px; width: min(420px, 50vw); }
+    .hud .bar i { display: block; height: 100%; width: 0; background: var(--accent); }
+    .empty {
+      position: absolute; color: var(--mute); text-align: center; max-width: 420px; padding: 20px;
+    }
+    .empty h2 { color: var(--text); font-size: 20px; margin: 0 0 8px; }
+    .hint { font-size: 12px; color: #6d7284; margin-top: 18px; line-height: 1.6; }
+    @media (max-width: 860px) {
+      .wrap { grid-template-columns: 1fr; }
+      aside { border-right: 0; border-bottom: 1px solid var(--line); }
+      main.stage { min-height: 58vh; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div class="brand">
+        <div class="logo">光</div>
+        <div>
+          <h1>光渡 AirLite</h1>
+          <p>电脑发送端 · 无服务器 · 屏幕二维码视频流</p>
+        </div>
+      </div>
+      <div class="hint" id="clockHint">空格暂停 · F 全屏 · Esc 停止</div>
+    </header>
+    <div class="wrap">
+      <aside>
+        <div class="drop" id="drop">
+          <strong>拖入文件，或点击选择</strong>
+          <span>多文件自动打成 zip · 文本也可直接发送</span>
+          <input id="file" type="file" multiple hidden />
+        </div>
+        <div class="row">
+          <label class="k">或粘贴文字</label>
+          <textarea id="text" placeholder="把文字贴在这里，点「发送文字」"></textarea>
+        </div>
+        <div class="row">
+          <label class="k">速度预设（手机网页接收建议「高速 / 激进」）</label>
+          <div class="presets" id="presets"></div>
+        </div>
+        <div class="actions">
+          <button class="btn primary" id="btnSend">开始发送</button>
+          <button class="btn ghost" id="btnText">发送文字</button>
+        </div>
+        <div class="actions">
+          <button class="btn ghost" id="btnPause">暂停</button>
+          <button class="btn ghost" id="btnStop">停止</button>
+        </div>
+        <div class="meta" id="meta">尚未选择文件。</div>
+        <p class="hint">
+          手机打开同目录 <code>receiver.html</code>（需摄像头权限，建议 HTTPS 或已授权环境），对准本屏即可。
+          喷泉码单向发送，丢帧会自动用修复符号补回，无需回传。
+        </p>
+      </aside>
+      <main class="stage">
+        <canvas id="qrStage"></canvas>
+        <div class="empty" id="empty">
+          <h2>把手机摄像头对准这里</h2>
+          选择文件后会以 1 或 4 个二维码并排高速刷新。越近、越稳、屏幕越亮，速度越快。
+        </div>
+        <div class="hud" id="hud" hidden>
+          <div>
+            <div id="hudName">—</div>
+            <div class="bar"><i id="hudBar"></i></div>
+          </div>
+          <div id="hudStat" style="text-align:right;font-size:12px;opacity:.9"></div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="vendor/qrcode-generator.min.js"></script>
+  <script src="vendor/fflate.js"></script>
+  <script src="protocol.js"></script>
+  <script>
+    (function () {
+      const P = AirLite;
+      const $ = (id) => document.getElementById(id);
+      const fileInput = $("file");
+      const drop = $("drop");
+      const canvas = $("qrStage");
+      const ctx = canvas.getContext("2d", { alpha: false });
+
+      let presetKey = "rush";
+      let files = [];
+      let playing = false;
+      let paused = false;
+      let raf = 0;
+      let lastTs = 0;
+      let session = {
+        meta: null,
+        chunks: null,
+        desc: null,
+        srcEsi: 0,
+        repairSeed: 1,
+        frames: 0,
+        started: 0,
+        tileSeq: 0
+      };
+
+      function renderPresets() {
+        const box = $("presets");
+        box.innerHTML = "";
+        Object.keys(P.PRESETS).forEach((key) => {
+          const p = P.PRESETS[key];
+          const b = document.createElement("button");
+          b.className = "preset" + (key === presetKey ? " on" : "");
+          b.innerHTML = "<b>" + p.label + "</b><small>" + p.tiles + "码 · V" + p.version + " · " + p.fps + "fps<br>" + p.hint + "</small>";
+          b.onclick = () => { presetKey = key; renderPresets(); updateMeta(); };
+          box.appendChild(b);
+        });
+      }
+
+      function fmtBytes(n) {
+        if (n < 1024) return n + " B";
+        if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+        return (n / 1048576).toFixed(2) + " MB";
+      }
+
+      function theoSpeed() {
+        const p = P.PRESETS[presetKey];
+        const payload = P.chunkSizeForVersion(p.version);
+        return p.tiles * payload * p.fps;
+      }
+
+      function updateMeta() {
+        const p = P.PRESETS[presetKey];
+        const names = files.map((f) => f.name).join("、") || "未选文件";
+        const size = files.reduce((s, f) => s + f.size, 0);
+        $("meta").innerHTML =
+          "文件：<b>" + names + "</b><br>" +
+          "大小：<b>" + fmtBytes(size) + "</b>" + (files.length > 1 ? "（将打包 zip）" : "") + "<br>" +
+          "预设：<b>" + p.label + "</b> · 理论峰值 <b>" + fmtBytes(theoSpeed()) + "/s</b><br>" +
+          "喷泉码：源符号发完后持续发不重复修复符号";
+      }
+
+      drop.addEventListener("click", () => fileInput.click());
+      drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+      drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+      drop.addEventListener("drop", (e) => {
+        e.preventDefault();
+        drop.classList.remove("over");
+        files = Array.from(e.dataTransfer.files || []);
+        updateMeta();
+      });
+      fileInput.addEventListener("change", () => {
+        files = Array.from(fileInput.files || []);
+        updateMeta();
+      });
+
+      async function packPayload(kind) {
+        if (kind === "text") {
+          const text = $("text").value;
+          if (!text.trim()) throw new Error("请先输入文字");
+          const raw = P.utf8Encode(text);
+          const gz = fflate.gzipSync(raw, { level: 6 });
+          const useGz = gz.length < raw.length;
+          return {
+            name: "note.txt",
+            data: useGz ? gz : raw,
+            flags: useGz ? 1 : 0,
+            rawSize: raw.length
+          };
+        }
+        if (!files.length) throw new Error("请先选择文件");
+        let name, raw;
+        if (files.length === 1) {
+          name = files[0].name;
+          raw = new Uint8Array(await files[0].arrayBuffer());
+        } else {
+          const bag = {};
+          for (const f of files) bag[f.name] = new Uint8Array(await f.arrayBuffer());
+          raw = fflate.zipSync(bag, { level: 6 });
+          name = "bundle.zip";
+        }
+        let data = raw;
+        let flags = 0;
+        if (files.length === 1) {
+          try {
+            const gz = fflate.gzipSync(raw, { level: 6 });
+            if (gz.length < raw.length * 0.97) { data = gz; flags = 1; }
+          } catch (_) {}
+        }
+        return { name, data, flags, rawSize: raw.length };
+      }
+
+      function drawFrame(payloads, version) {
+        const dpr = window.devicePixelRatio || 1;
+        const w = canvas.clientWidth || canvas.parentElement.clientWidth;
+        const h = canvas.clientHeight || canvas.parentElement.clientHeight;
+        if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {
+          canvas.width = Math.floor(w * dpr);
+          canvas.height = Math.floor(h * dpr);
+        }
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, w, h);
+
+        const n = payloads.length;
+        const cols = n === 1 ? 1 : 2;
+        const rows = Math.ceil(n / cols);
+        const pad = 18;
+        const gap = 14;
+        const cellW = (w - pad * 2 - gap * (cols - 1)) / cols;
+        const cellH = (h - pad * 2 - gap * (rows - 1)) / rows;
+        const cell = Math.floor(Math.min(cellW, cellH));
+
+        for (let i = 0; i < n; i++) {
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          const qr = qrcode(version, "L");
+          qr.addData(P.bytesToBinStr(payloads[i]), "Byte");
+          qr.make();
+          const count = qr.getModuleCount();
+          const quiet = 4;
+          const total = count + quiet * 2;
+          const mod = Math.max(1, Math.floor(cell / total));
+          const size = total * mod;
+          const ox = pad + col * (cell + gap) + Math.floor((cellW - size) / 2);
+          const oy = pad + row * (cell + gap) + Math.floor((cellH - size) / 2);
+          ctx.fillStyle = "#fff";
+          ctx.fillRect(ox, oy, size, size);
+          ctx.fillStyle = "#000";
+          for (let y = 0; y < count; y++) {
+            for (let x = 0; x < count; x++) {
+              if (qr.isDark(y, x)) ctx.fillRect(ox + (x + quiet) * mod, oy + (y + quiet) * mod, mod, mod);
+            }
+          }
+        }
+      }
+
+      function nextPayloads() {
+        const p = P.PRESETS[presetKey];
+        const out = [];
+        for (let t = 0; t < p.tiles; t++) {
+          const seq = session.tileSeq++;
+          if (seq % 13 === 0) {
+            out.push(session.desc);
+            continue;
+          }
+          if (session.srcEsi < session.chunks.length) {
+            const esi = session.srcEsi++;
+            out.push(P.buildSource(session.meta.session, esi, session.chunks[esi]));
+          } else {
+            const seed = session.repairSeed++;
+            if (seed === 0) session.repairSeed = 1;
+            const pay = P.makeRepairPayload(session.chunks, seed);
+            out.push(P.buildRepair(session.meta.session, seed, pay));
+          }
+        }
+        return out;
+      }
+
+      function tick(ts) {
+        if (!playing) return;
+        const p = P.PRESETS[presetKey];
+        const interval = 1000 / p.fps;
+        if (!paused && (!lastTs || ts - lastTs >= interval - 1)) {
+          lastTs = ts;
+          try {
+            const payloads = nextPayloads();
+            drawFrame(payloads, p.version);
+            session.frames++;
+            const srcTotal = session.chunks.length;
+            const srcSent = Math.min(session.srcEsi, srcTotal);
+            const ratio = srcTotal ? srcSent / srcTotal : 0;
+            $("hudBar").style.width = Math.min(100, ratio * 100) + "%";
+            const elapsed = (performance.now() - session.started) / 1000;
+            const emitted = session.tileSeq * P.chunkSizeForVersion(p.version);
+            $("hudStat").innerHTML =
+              (paused ? "已暂停<br>" : "") +
+              srcSent + " / " + srcTotal + " 源符号" +
+              (session.srcEsi >= srcTotal ? "<br>修复 +" + (session.repairSeed - 1) : "") +
+              "<br>" + (elapsed ? fmtBytes(emitted / elapsed) + "/s" : "");
+          } catch (err) {
+            console.error(err);
+            stopPlay();
+            alert("生成二维码失败：" + err.message);
+            return;
+          }
+        }
+        raf = requestAnimationFrame(tick);
+      }
+
+      async function startPlay(kind) {
+        stopPlay();
+        const packed = await packPayload(kind);
+        const p = P.PRESETS[presetKey];
+        const chunkSize = P.chunkSizeForVersion(p.version);
+        if (chunkSize < 32) throw new Error("块太小");
+        const chunks = P.splitChunks(packed.data, chunkSize);
+        const sid = P.newSessionId();
+        const meta = {
+          session: sid,
+          name: packed.name,
+          fileSize: packed.data.length,
+          fileCrc: P.crc32(packed.data),
+          chunkSize: chunkSize,
+          numChunks: chunks.length,
+          flags: packed.flags
+        };
+        session = {
+          meta: meta,
+          chunks: chunks,
+          desc: P.buildDescriptor(meta),
+          srcEsi: 0,
+          repairSeed: 1,
+          frames: 0,
+          started: performance.now(),
+          tileSeq: 0
+        };
+        $("empty").hidden = true;
+        $("hud").hidden = false;
+        $("hudName").textContent = packed.name + "  ·  " + fmtBytes(packed.data.length) +
+          (packed.flags & 1 ? " gzip" : "") + "  ·  原始 " + fmtBytes(packed.rawSize);
+        playing = true;
+        paused = false;
+        lastTs = 0;
+        $("btnPause").textContent = "暂停";
+        raf = requestAnimationFrame(tick);
+      }
+
+      function stopPlay() {
+        playing = false;
+        paused = false;
+        if (raf) cancelAnimationFrame(raf);
+        raf = 0;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        $("empty").hidden = false;
+        $("hud").hidden = true;
+      }
+
+      $("btnSend").onclick = () => startPlay("file").catch((e) => alert(e.message));
+      $("btnText").onclick = () => startPlay("text").catch((e) => alert(e.message));
+      $("btnStop").onclick = stopPlay;
+      $("btnPause").onclick = () => {
+        if (!playing) return;
+        paused = !paused;
+        $("btnPause").textContent = paused ? "继续" : "暂停";
+      };
+
+      window.addEventListener("keydown", (e) => {
+        if (e.code === "Space") {
+          e.preventDefault();
+          $("btnPause").click();
+        } else if (e.key === "f" || e.key === "F") {
+          if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+          else document.exitFullscreen().catch(() => {});
+        } else if (e.key === "Escape") {
+          stopPlay();
+        }
+      });
+
+      function fit() {
+        const stage = canvas.parentElement;
+        canvas.style.width = stage.clientWidth + "px";
+        canvas.style.height = stage.clientHeight + "px";
+      }
+      window.addEventListener("resize", fit);
+      fit();
+      renderPresets();
+      updateMeta();
+    })();
+  </script>
+</body>
+</html>

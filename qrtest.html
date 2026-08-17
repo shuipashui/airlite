@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<meta charset="UTF-8" />
+<title>qrtest</title>
+<pre id="out">running</pre>
+<script src="vendor/qrcode-generator.min.js"></script>
+<script src="protocol.js"></script>
+<script>
+try {
+  var P = AirLite;
+  var versions = [12, 16, 20];
+  var lines = [];
+  versions.forEach(function (v) {
+    var cap = P.QR_CAP_L[v];
+    var chunk = P.chunkSizeForVersion(v);
+    var payload = new Uint8Array(chunk);
+    for (var i = 0; i < chunk; i++) payload[i] = i & 255;
+    var frame = P.buildSource(0x11, 3, payload);
+    if (frame.length !== cap) throw new Error("len " + frame.length + " != " + cap);
+    var qr = qrcode(v, "L");
+    qr.addData(P.bytesToBinStr(frame), "Byte");
+    qr.make();
+    lines.push("V" + v + " modules=" + qr.getModuleCount() + " bytes=" + frame.length);
+  });
+  document.getElementById("out").textContent = "OK\n" + lines.join("\n");
+  document.title = "OK";
+} catch (e) {
+  document.getElementById("out").textContent = "FAIL " + e;
+  document.title = "FAIL";
+}
+</script>
