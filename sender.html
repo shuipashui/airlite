@@ -107,12 +107,14 @@
     .empty[hidden] { display: none !important; }
     .empty h2 { color: var(--text); font-size: 20px; margin: 0 0 8px; }
     .pair { display: flex; flex-direction: column; align-items: center; gap: 12px; pointer-events: auto; }
-    #pairQr, #sidePair {
-      width: 260px; height: 260px; background: #fff; border-radius: 10px;
-      padding: 10px; box-sizing: border-box;
+    .qr-frame {
+      background: #fff; border-radius: 12px; padding: 12px; line-height: 0;
+      box-shadow: 0 0 0 4px #fff;
     }
-    #sidePair { width: 180px; height: 180px; margin: 10px auto 0; display: block; }
-    .urlbox { font-size: 12px; color: var(--accent); word-break: break-all; }
+    .qr-frame img { display: block; width: 240px; height: 240px; image-rendering: pixelated; }
+    #sidePairBox .qr-frame img { width: 168px; height: 168px; margin: 0 auto; }
+    .urlbox { font-size: 13px; color: var(--accent); word-break: break-all; }
+    .urlbox a { color: var(--accent); }
     .hint { font-size: 12px; color: #6d7284; margin-top: 18px; line-height: 1.6; }
     @media (max-width: 860px) {
       .wrap { grid-template-columns: 1fr; }
@@ -166,7 +168,7 @@
         </div>
         <div class="row" id="sidePairBox">
           <label class="k">手机扫这个码打开接收端</label>
-          <canvas id="sidePair" width="180" height="180"></canvas>
+          <div class="qr-frame"><img id="sidePair" alt="接收端二维码" /></div>
         </div>
         <p class="hint">
           右侧大码或上面小码都是接收端地址。用 Safari / Chrome 扫开，不要用微信内置浏览器。
@@ -182,7 +184,7 @@
         <div class="empty" id="empty">
           <div class="pair">
             <h2>第一步：手机扫这个码打开接收端</h2>
-            <canvas id="pairQr" width="260" height="260"></canvas>
+            <div class="qr-frame"><img id="pairQr" alt="接收端二维码" /></div>
             <div class="urlbox" id="recvUrl"></div>
             <div>第二步：选文件点「开始发送」，把手机对准屏幕上的动态二维码。</div>
           </div>
@@ -560,31 +562,26 @@
       $("btnPause").onclick = togglePause;
       $("dockPause").onclick = togglePause;
 
-      function paintUrlQR(c) {
-        if (!c || typeof qrcode === "undefined") return;
-        const ctx2 = c.getContext("2d");
+      function makeUrlQR() {
+        if (typeof qrcode === "undefined") return "";
         const qr = qrcode(0, "M");
-        qr.addData(RECEIVER_URL, "Byte");
+        qr.addData(RECEIVER_URL);
         qr.make();
-        const n = qr.getModuleCount();
-        const quiet = 3;
-        const total = n + quiet * 2;
-        const size = c.width;
-        const mod = size / total;
-        ctx2.fillStyle = "#fff";
-        ctx2.fillRect(0, 0, size, size);
-        ctx2.fillStyle = "#000";
-        for (let y = 0; y < n; y++) {
-          for (let x = 0; x < n; x++) {
-            if (qr.isDark(y, x)) ctx2.fillRect((x + quiet) * mod, (y + quiet) * mod, mod, mod);
-          }
-        }
+        return qr.createDataURL(8, 4);
       }
 
       function drawPairingQR() {
-        if ($("recvUrl")) $("recvUrl").textContent = RECEIVER_URL;
-        paintUrlQR($("pairQr"));
-        paintUrlQR($("sidePair"));
+        const url = RECEIVER_URL;
+        const box = $("recvUrl");
+        if (box) box.innerHTML = '<a href="' + url + '" target="_blank" rel="noopener">' + url + "</a>";
+        let src = "";
+        try { src = makeUrlQR(); } catch (e) { showErr("配对二维码生成失败：" + e.message); }
+        ["pairQr", "sidePair"].forEach((id) => {
+          const img = $(id);
+          if (!img) return;
+          if (src) img.src = src;
+          else img.alt = "二维码库未加载，请用链接打开接收端";
+        });
       }
 
       window.addEventListener("keydown", (e) => {
