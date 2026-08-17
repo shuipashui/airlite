@@ -2,23 +2,41 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#07080c" />
   <title>光渡 AirLite</title>
   <style>
-    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #07080c; color: #e8eaef; font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #07080c; color: #e8eaef; font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; padding: 24px; }
     .box { width: min(440px, 92vw); }
+    .logo { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(145deg, #3dffb0, #2a8cff); color: #04140d; display: grid; place-items: center; font-weight: 800; margin-bottom: 14px; }
     h1 { margin: 0 0 8px; font-size: 28px; }
-    p { color: #8b90a1; line-height: 1.6; }
-    a { display: block; text-align: center; text-decoration: none; color: #04140d; background: #3dffb0; border-radius: 12px; padding: 14px; font-weight: 700; margin-top: 12px; }
+    p { color: #8b90a1; line-height: 1.65; }
+    a.btn { display: block; text-align: center; text-decoration: none; color: #04140d; background: #3dffb0; border-radius: 12px; padding: 16px; font-weight: 700; margin-top: 14px; font-size: 17px; }
     a.ghost { background: #1a1e2a; color: #e8eaef; }
+    .note { font-size: 13px; }
+    code { color: #c9d0e0; }
   </style>
 </head>
 <body>
   <div class="box">
+    <div class="logo">光</div>
     <h1>光渡 AirLite</h1>
-    <p>电脑打开发送端播放二维码，手机打开接收端扫码。传文件本身不需要服务器。</p>
-    <a href="sender.html">电脑发送端</a>
-    <a class="ghost" href="receiver.html">手机接收端</a>
+    <p>电脑播放二维码，手机扫码收文件。传文件不走服务器。</p>
+    <a class="btn" id="main" href="receiver.html">手机打开接收端</a>
+    <a class="btn ghost" href="sender.html">电脑打开发送端</a>
+    <p class="note">手机请用 <b>Safari / Chrome</b> 打开，不要用微信/QQ 内置浏览器。电脑可直接双击本地 <code>sender.html</code>。</p>
   </div>
+  <script>
+    (function () {
+      var phone = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+      var main = document.getElementById("main");
+      if (!phone) {
+        main.href = "sender.html";
+        main.textContent = "电脑打开发送端";
+        main.nextElementSibling.href = "receiver.html";
+        main.nextElementSibling.textContent = "手机接收端（给手机用）";
+      }
+    })();
+  </script>
 </body>
 </html>

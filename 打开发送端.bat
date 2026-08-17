@@ -1,6 +1,7 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
+rem 也可直接双击 sender.html。这个脚本只是解除下载锁定后再打开。
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-ChildItem -LiteralPath '%~dp0' -Recurse | Unblock-File"
 set "HTML=%~dp0sender.html"
 if exist "%ProgramFiles%\Google\Chrome\Application\chrome.exe" (

@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#05060a" />
   <title>光渡 · 手机接收端</title>
   <style>
     :root {
@@ -12,20 +14,19 @@
       --mute: #8b90a1;
       --accent: #3dffb0;
       --danger: #ff5d6c;
-      --panel: rgba(12,14,20,.78);
+      --panel: rgba(12,14,20,.82);
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; background: #000; color: var(--text); font-family: "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif; }
     button { font: inherit; cursor: pointer; }
     .view { position: relative; height: 100%; overflow: hidden; }
-    video, canvas.overlay { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    video, canvas.overlay { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
     canvas.overlay { pointer-events: none; }
-    .shade { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 9999px rgba(0,0,0,.18); }
     .top, .bot {
       position: absolute; left: 0; right: 0; z-index: 3;
       padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
     }
-    .bot { top: auto; bottom: 0; padding: 10px 14px calc(16px + env(safe-area-inset-bottom)); background: linear-gradient(transparent, rgba(0,0,0,.72)); }
+    .bot { top: auto; bottom: 0; padding: 10px 14px calc(16px + env(safe-area-inset-bottom)); background: linear-gradient(transparent, rgba(0,0,0,.78)); }
     .top { background: linear-gradient(rgba(0,0,0,.65), transparent); }
     .brand { display: flex; justify-content: space-between; align-items: baseline; }
     .brand h1 { margin: 0; font-size: 16px; }
@@ -40,29 +41,29 @@
     .stat { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: #c5c9d6; }
     .row { display: flex; gap: 8px; margin-top: 10px; }
     .btn {
-      flex: 1; border: 0; border-radius: 10px; padding: 11px;
+      flex: 1; border: 0; border-radius: 10px; padding: 12px;
       background: var(--accent); color: #04140d; font-weight: 700;
     }
     .btn.ghost { background: #1c2230; color: var(--text); font-weight: 600; }
     .gate {
       position: absolute; inset: 0; z-index: 5; display: grid; place-items: center;
-      background: var(--bg); padding: 24px;
+      background: var(--bg); padding: 24px; overflow: auto;
     }
-    .gate .box { max-width: 420px; }
+    .gate .box { max-width: 440px; width: 100%; }
     .gate h2 { margin: 0 0 8px; font-size: 22px; }
-    .gate p { color: var(--mute); line-height: 1.6; }
-    .warn { color: #ffb020; font-size: 13px; }
-    .done { display: none; }
-    .done.show { display: block; }
+    .gate p { color: var(--mute); line-height: 1.65; }
+    .warn { color: #ffb020; font-size: 14px; }
     .ok { color: var(--accent); }
     .err { color: var(--danger); }
+    .done { display: none; }
+    .done.show { display: block; }
+    a.link { color: var(--accent); word-break: break-all; }
   </style>
 </head>
 <body>
   <div class="view">
-    <video id="video" playsinline autoplay muted></video>
+    <video id="video" playsinline webkit-playsinline muted autoplay></video>
     <canvas class="overlay" id="overlay"></canvas>
-    <div class="shade"></div>
     <div class="top">
       <div class="brand">
         <h1>光渡 · 接收</h1>
@@ -83,52 +84,74 @@
         </div>
         <div class="done" id="doneBox">
           <div class="row">
-            <button class="btn" id="btnSave">保存文件</button>
-            <button class="btn ghost" id="btnCopy" hidden>复制文字</button>
+            <button class="btn" type="button" id="btnSave">保存文件</button>
+            <button class="btn ghost" type="button" id="btnCopy" hidden>复制文字</button>
           </div>
         </div>
         <div class="row">
-          <button class="btn ghost" id="btnTorch">手电筒</button>
-          <button class="btn ghost" id="btnReset">重新接收</button>
+          <button class="btn ghost" type="button" id="btnTorch">手电筒</button>
+          <button class="btn ghost" type="button" id="btnReset">重新接收</button>
         </div>
       </div>
     </div>
     <div class="gate" id="gate">
       <div class="box">
         <h2>打开摄像头开始接收</h2>
-        <p>完全离线：电脑用 <b>sender.html</b> 播放二维码视频流，本页用摄像头扫码恢复文件。无需局域网、无需服务器。</p>
-        <p class="warn" id="secureWarn" hidden>当前不是 HTTPS / localhost，多数手机浏览器会禁止摄像头。请用手机浏览器可访问摄像头的方式打开本页（例如已部署的 https 静态页，或本机 https）。</p>
-        <div class="row"><button class="btn" id="btnStart">授权并开始</button></div>
+        <p>用手机浏览器打开本页，对准电脑屏幕上正在播放的二维码。传文件本身不走网络。</p>
+        <p class="warn" id="secureWarn" hidden></p>
+        <p class="warn" id="appWarn" hidden>检测到微信/QQ 内置浏览器，通常无法开摄像头。请点右上角 <b>…</b>，选「在浏览器中打开」（Safari / Chrome）。</p>
+        <div class="row"><button class="btn" type="button" id="btnStart">授权并打开摄像头</button></div>
         <p id="err" class="err"></p>
+        <p id="pageLink" hidden>正确地址：<a class="link" id="httpsLink" href="#"></a></p>
       </div>
     </div>
   </div>
+  <script src="config.js"></script>
   <script src="vendor/jsQR.js"></script>
   <script src="vendor/fflate.js"></script>
   <script src="protocol.js"></script>
   <script>
     (function () {
-      const P = AirLite;
-      const $ = (id) => document.getElementById(id);
-      const video = $("video");
-      const overlay = $("overlay");
-      const octx = overlay.getContext("2d");
-      const rx = new P.FountainRx();
+      var RECEIVER = (window.AIRLITE && AIRLITE.RECEIVER) || (location.protocol + "//" + location.host + location.pathname);
+      var $ = function (id) { return document.getElementById(id); };
+      var video = $("video");
+      var overlay = $("overlay");
+      var octx = overlay.getContext("2d");
+      var P = window.AirLite;
+      var ua = navigator.userAgent || "";
+      var inApp = /MicroMessenger|QQ\//i.test(ua) || /miniProgram|DingTalk|BytedanceWebview|Aweme/i.test(ua);
+      var secure = window.isSecureContext === true;
+      var rx = P ? new P.FountainRx() : null;
 
-      let stream = null;
-      let detector = null;
-      let busy = false;
-      let lastBytes = 0;
-      let lastT = 0;
-      let decoded = 0;
-      let lastDecodedT = 0;
-      let decodeFps = 0;
-      let result = null;
-      let workCanvas = document.createElement("canvas");
-      let wctx = workCanvas.getContext("2d", { willReadFrequently: true });
-      let tickHandle = 0;
+      var stream = null;
+      var detector = null;
+      var busy = false;
+      var lastBytes = 0;
+      var lastT = 0;
+      var decoded = 0;
+      var lastDecodedT = 0;
+      var decodeFps = 0;
+      var result = null;
+      var workCanvas = document.createElement("canvas");
+      var wctx = workCanvas.getContext("2d", { willReadFrequently: true });
+      var running = false;
 
-      if (!window.isSecureContext) $("secureWarn").hidden = false;
+      video.setAttribute("playsinline", "true");
+      video.setAttribute("webkit-playsinline", "true");
+      video.muted = true;
+      video.autoplay = true;
+      video.playsInline = true;
+
+      $("httpsLink").href = RECEIVER;
+      $("httpsLink").textContent = RECEIVER;
+
+      if (!secure) {
+        $("secureWarn").hidden = false;
+        $("secureWarn").innerHTML = "当前页面不是 HTTPS，手机浏览器会禁止摄像头。<br>请用手机点击打开：";
+        $("pageLink").hidden = false;
+      }
+      if (inApp) $("appWarn").hidden = false;
+      if (!P) $("err").textContent = "协议脚本没加载到。请从 GitHub 网页打开接收端，不要只保存单个 HTML。";
 
       function fmtBytes(n) {
         if (n < 1024) return n + " B";
@@ -137,7 +160,7 @@
       }
 
       function bytesFromDetect(raw) {
-        if (!raw) return null;
+        if (!raw || !P) return null;
         if (raw instanceof Uint8Array) return raw;
         if (Array.isArray(raw)) return new Uint8Array(raw);
         if (typeof raw === "string") return P.binStrToBytes(raw);
@@ -145,7 +168,8 @@
       }
 
       function ingest(u8) {
-        const frame = P.parseFrame(u8);
+        if (!rx) return false;
+        var frame = P.parseFrame(u8);
         if (!frame) return false;
         if (frame.type === P.TYPE_DESC) {
           rx.applyDesc(frame);
@@ -159,42 +183,42 @@
       }
 
       function paintOverlay(boxes) {
-        const w = overlay.width = video.videoWidth || overlay.clientWidth;
-        const h = overlay.height = video.videoHeight || overlay.clientHeight;
+        var w = overlay.width = video.videoWidth || overlay.clientWidth || 1;
+        var h = overlay.height = video.videoHeight || overlay.clientHeight || 1;
         octx.clearRect(0, 0, w, h);
         octx.strokeStyle = "#3dffb0";
         octx.lineWidth = 3;
-        (boxes || []).forEach((b) => {
+        (boxes || []).forEach(function (b) {
           if (!b || !b.length) return;
           octx.beginPath();
           octx.moveTo(b[0].x, b[0].y);
-          for (let i = 1; i < b.length; i++) octx.lineTo(b[i].x, b[i].y);
+          for (var i = 1; i < b.length; i++) octx.lineTo(b[i].x, b[i].y);
           octx.closePath();
           octx.stroke();
         });
       }
 
       function updateHud() {
-        if (!rx.ready) {
+        if (!rx || !rx.ready) {
           $("fileName").textContent = "正在寻找描述符帧…对准屏幕";
           $("prog").textContent = "0 / ?";
           $("bar").style.width = "0%";
           $("detail").textContent = "解码 " + decoded + " 帧有效";
         } else {
-          const pct = rx.numChunks ? (rx.got / rx.numChunks) * 100 : 0;
+          var pct = rx.numChunks ? (rx.got / rx.numChunks) * 100 : 0;
           $("fileName").textContent = rx.name || "未命名";
           $("prog").textContent = rx.got + " / " + rx.numChunks;
           $("bar").style.width = Math.min(100, pct) + "%";
           $("detail").textContent = "源 " + rx.seenSrc + " · 修复 " + rx.seenRep + " · 描述符 " + rx.seenDesc;
         }
         $("fps").textContent = decodeFps.toFixed(0) + " 解/秒";
-        const now = performance.now();
+        var now = performance.now();
         if (lastT) {
-          const dt = (now - lastT) / 1000;
-          const db = (rx.got * (rx.chunkSize || 0)) - lastBytes;
+          var dt = (now - lastT) / 1000;
+          var db = (rx ? rx.got * (rx.chunkSize || 0) : 0) - lastBytes;
           if (dt > 0.4) {
             $("rate").textContent = fmtBytes(Math.max(0, db) / dt) + "/s";
-            lastBytes = rx.got * (rx.chunkSize || 0);
+            lastBytes = rx ? rx.got * (rx.chunkSize || 0) : 0;
             lastT = now;
           }
         } else {
@@ -209,17 +233,17 @@
       }
 
       function finishIfDone() {
-        if (!rx.complete() || result) return;
-        const assembled = rx.assemble();
+        if (!rx || !rx.complete() || result) return;
+        var assembled = rx.assemble();
         if (!assembled) return;
         if (assembled.error) {
           $("detail").innerHTML = '<span class="err">CRC 校验失败，继续收修复符号…</span>';
           rx.got = Object.keys(rx.symbols).length;
           return;
         }
-        let data = assembled.data;
-        let name = assembled.name || "file.bin";
-        if (assembled.flags & 1) {
+        var data = assembled.data;
+        var name = assembled.name || "file.bin";
+        if ((assembled.flags & 1) && typeof fflate !== "undefined") {
           try { data = fflate.gunzipSync(data); }
           catch (e) {
             $("detail").innerHTML = '<span class="err">解压失败</span>';
@@ -235,22 +259,23 @@
         try { navigator.vibrate && navigator.vibrate([40, 40, 80]); } catch (_) {}
       }
 
-      function scanWithJsQR(img, w, h) {
-        const boxes = [];
-        const jobs = [{ x: 0, y: 0, w: w, h: h }];
-        if (w > 200 && h > 200) {
-          const hw = (w / 2) | 0, hh = (h / 2) | 0;
+      function scanWithJsQR(w, h) {
+        if (typeof jsQR !== "function") return [];
+        var boxes = [];
+        var jobs = [{ x: 0, y: 0, w: w, h: h }];
+        if (w > 240 && h > 240) {
+          var hw = (w / 2) | 0, hh = (h / 2) | 0;
           jobs.push({ x: 0, y: 0, w: hw, h: hh });
           jobs.push({ x: hw, y: 0, w: w - hw, h: hh });
           jobs.push({ x: 0, y: hh, w: hw, h: h - hh });
           jobs.push({ x: hw, y: hh, w: w - hw, h: h - hh });
         }
-        for (let i = 0; i < jobs.length; i++) {
-          const j = jobs[i];
-          const slice = wctx.getImageData(j.x, j.y, j.w, j.h);
-          const code = jsQR(slice.data, j.w, j.h, { inversionAttempts: "dontInvert" });
+        for (var i = 0; i < jobs.length; i++) {
+          var j = jobs[i];
+          var slice = wctx.getImageData(j.x, j.y, j.w, j.h);
+          var code = jsQR(slice.data, j.w, j.h, { inversionAttempts: "attemptBoth" });
           if (!code) continue;
-          const bytes = bytesFromDetect(code.binaryData) || P.binStrToBytes(code.data || "");
+          var bytes = bytesFromDetect(code.binaryData) || (P && P.binStrToBytes(code.data || ""));
           if (ingest(bytes)) {
             decoded++;
             if (code.location) {
@@ -267,38 +292,36 @@
       }
 
       async function scanFrame() {
-        if (busy || !video.videoWidth) return;
-        if (result) return;
+        if (busy || !running || result || !video.videoWidth) return;
         busy = true;
         try {
-          const vw = video.videoWidth;
-          const vh = video.videoHeight;
-          const boxes = [];
+          var vw = video.videoWidth;
+          var vh = video.videoHeight;
+          var boxes = [];
           if (detector) {
             try {
-              const codes = await detector.detect(video);
-              for (let i = 0; i < codes.length; i++) {
-                const c = codes[i];
-                const bytes = bytesFromDetect(c.rawValue);
-                if (ingest(bytes)) {
+              var codes = await detector.detect(video);
+              for (var i = 0; i < codes.length; i++) {
+                var c = codes[i];
+                if (ingest(bytesFromDetect(c.rawValue))) {
                   decoded++;
                   if (c.cornerPoints) boxes.push(c.cornerPoints);
                 }
               }
             } catch (_) {}
           }
-          if (!rx.ready || boxes.length === 0) {
-            const maxW = 1280;
-            const scale = vw > maxW ? maxW / vw : 1;
-            const dw = Math.max(1, (vw * scale) | 0);
-            const dh = Math.max(1, (vh * scale) | 0);
+          if (!rx || !rx.ready || boxes.length === 0) {
+            var maxW = 960;
+            var scale = vw > maxW ? maxW / vw : 1;
+            var dw = Math.max(1, (vw * scale) | 0);
+            var dh = Math.max(1, (vh * scale) | 0);
             if (workCanvas.width !== dw || workCanvas.height !== dh) {
               workCanvas.width = dw;
               workCanvas.height = dh;
             }
             wctx.drawImage(video, 0, 0, dw, dh);
-            const more = scanWithJsQR(null, dw, dh);
-            for (let i = 0; i < more.length; i++) boxes.push(more[i]);
+            var more = scanWithJsQR(dw, dh);
+            for (var k = 0; k < more.length; k++) boxes.push(more[k]);
           }
           paintOverlay(boxes);
           updateHud();
@@ -309,38 +332,72 @@
       }
 
       function loop() {
+        if (!running) return;
         scanFrame();
-        if (video.requestVideoFrameCallback) tickHandle = video.requestVideoFrameCallback(loop);
-        else tickHandle = requestAnimationFrame(loop);
+        if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(loop);
+        else requestAnimationFrame(loop);
+      }
+
+      function explainCamError(e) {
+        var name = (e && e.name) || "";
+        var msg = (e && e.message) || String(e || "未知错误");
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          return "这个浏览器没有摄像头接口。请用 Safari 或 Chrome 打开：" + RECEIVER;
+        }
+        if (!secure) return "非 HTTPS 页面无法开摄像头。请打开：" + RECEIVER;
+        if (inApp) return "请在系统浏览器中打开本页，不要用微信/QQ 内置窗口。";
+        if (name === "NotAllowedError" || name === "PermissionDeniedError") return "你拒绝了摄像头权限。请到系统设置里允许此网站使用相机，再重试。";
+        if (name === "NotFoundError" || name === "DevicesNotFoundError") return "没找到摄像头。";
+        if (name === "NotReadableError" || name === "TrackStartError") return "摄像头被别的应用占用。";
+        if (name === "OverconstrainedError") return "当前相机参数不被支持，请再点一次重试。";
+        return "无法打开摄像头：" + name + " " + msg;
+      }
+
+      async function openCamera() {
+        var md = navigator.mediaDevices;
+        if (!md || !md.getUserMedia) throw new Error("no-api");
+        var tries = [
+          { audio: false, video: { facingMode: { ideal: "environment" } } },
+          { audio: false, video: { facingMode: "environment" } },
+          { audio: false, video: true }
+        ];
+        var last = null;
+        for (var i = 0; i < tries.length; i++) {
+          try {
+            return await md.getUserMedia(tries[i]);
+          } catch (e) {
+            last = e;
+          }
+        }
+        throw last || new Error("getUserMedia failed");
       }
 
       async function startCam() {
         $("err").textContent = "";
+        if (!P) {
+          $("err").textContent = "脚本未加载，请用手机打开 " + RECEIVER;
+          return;
+        }
         try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            audio: false,
-            video: {
-              facingMode: { ideal: "environment" },
-              width: { ideal: 1920 },
-              height: { ideal: 1080 },
-              frameRate: { ideal: 30 }
-            }
-          });
+          stream = await openCamera();
           video.srcObject = stream;
-          await video.play();
+          var played = video.play();
+          if (played && played.catch) await played.catch(function () {});
           $("gate").style.display = "none";
-          $("camInfo").textContent = (video.videoWidth || "") + "×" + (video.videoHeight || "");
+          $("camInfo").textContent = (video.videoWidth || "相机") + (video.videoHeight ? "×" + video.videoHeight : " 已打开");
           if ("BarcodeDetector" in window) {
             try { detector = new BarcodeDetector({ formats: ["qr_code"] }); } catch (_) { detector = null; }
           }
+          running = true;
           loop();
         } catch (e) {
-          $("err").textContent = "无法打开摄像头：" + (e.message || e);
+          $("err").textContent = explainCamError(e);
+          $("pageLink").hidden = false;
         }
       }
 
       function resetRx() {
-        rx.reset();
+        if (rx) rx.reset();
         result = null;
         decoded = 0;
         lastBytes = 0;
@@ -355,27 +412,36 @@
 
       $("btnStart").onclick = startCam;
       $("btnReset").onclick = resetRx;
-      $("btnSave").onclick = () => {
+      $("btnSave").onclick = function () {
         if (!result) return;
-        const blob = new Blob([result.data], { type: "application/octet-stream" });
-        const a = document.createElement("a");
+        var blob = new Blob([result.data], { type: "application/octet-stream" });
+        var a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
         a.download = result.name;
+        document.body.appendChild(a);
         a.click();
-        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
       };
-      $("btnCopy").onclick = async () => {
+      $("btnCopy").onclick = async function () {
         if (!result) return;
-        const text = new TextDecoder().decode(result.data);
-        try { await navigator.clipboard.writeText(text); $("detail").textContent = "已复制到剪贴板"; }
-        catch (_) { $("detail").textContent = "复制失败，请改用保存"; }
+        var text = new TextDecoder().decode(result.data);
+        try {
+          await navigator.clipboard.writeText(text);
+          $("detail").textContent = "已复制到剪贴板";
+        } catch (_) {
+          $("detail").textContent = "复制失败，请改用保存";
+        }
       };
-      $("btnTorch").onclick = async () => {
-        const track = stream && stream.getVideoTracks()[0];
+      $("btnTorch").onclick = async function () {
+        var track = stream && stream.getVideoTracks()[0];
         if (!track) return;
-        const caps = track.getCapabilities && track.getCapabilities();
-        if (!caps || !caps.torch) { $("detail").textContent = "此摄像头不支持手电筒"; return; }
-        const on = !(track.getSettings().torch);
+        var caps = track.getCapabilities && track.getCapabilities();
+        if (!caps || !caps.torch) {
+          $("detail").textContent = "此摄像头不支持手电筒";
+          return;
+        }
+        var on = !track.getSettings().torch;
         try { await track.applyConstraints({ advanced: [{ torch: on }] }); } catch (_) {}
       };
     })();

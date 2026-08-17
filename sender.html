@@ -92,9 +92,12 @@
     .hud .bar { height: 6px; background: #222; border-radius: 99px; overflow: hidden; margin-top: 8px; width: min(420px, 50vw); }
     .hud .bar i { display: block; height: 100%; width: 0; background: var(--accent); }
     .empty {
-      position: absolute; color: var(--mute); text-align: center; max-width: 420px; padding: 20px;
+      position: absolute; color: var(--mute); text-align: center; max-width: 460px; padding: 20px;
     }
     .empty h2 { color: var(--text); font-size: 20px; margin: 0 0 8px; }
+    .pair { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    #pairQr { width: 196px; height: 196px; background: #fff; border-radius: 8px; }
+    .urlbox { font-size: 12px; color: var(--accent); word-break: break-all; }
     .hint { font-size: 12px; color: #6d7284; margin-top: 18px; line-height: 1.6; }
     @media (max-width: 860px) {
       .wrap { grid-template-columns: 1fr; }
@@ -142,15 +145,18 @@
         </div>
         <div class="meta" id="meta">尚未选择文件。</div>
         <p class="hint">
-          手机打开同目录 <code>receiver.html</code>（需摄像头权限，建议 HTTPS 或已授权环境），对准本屏即可。
-          喷泉码单向发送，丢帧会自动用修复符号补回，无需回传。
+          电脑可直接双击本文件发送。手机请用 Safari / Chrome 打开右侧二维码地址（GitHub 网页），再授权摄像头对准本屏。不要用微信内置浏览器。
         </p>
       </aside>
       <main class="stage">
         <canvas id="qrStage"></canvas>
         <div class="empty" id="empty">
-          <h2>把手机摄像头对准这里</h2>
-          选择文件后会以 1 或 4 个二维码并排高速刷新。越近、越稳、屏幕越亮，速度越快。
+          <div class="pair">
+            <h2>第一步：手机扫这个码打开接收端</h2>
+            <canvas id="pairQr" width="196" height="196"></canvas>
+            <div class="urlbox" id="recvUrl"></div>
+            <div>第二步：选文件点「开始发送」，把手机对准屏幕上的动态二维码。</div>
+          </div>
         </div>
         <div class="hud" id="hud" hidden>
           <div>
@@ -162,6 +168,7 @@
       </main>
     </div>
   </div>
+  <script src="config.js"></script>
   <script src="vendor/qrcode-generator.min.js"></script>
   <script src="vendor/fflate.js"></script>
   <script src="protocol.js"></script>
@@ -173,6 +180,7 @@
       const canvas = $("qrStage");
       const ctx = canvas.getContext("2d", { alpha: false });
       const P = typeof AirLite !== "undefined" ? AirLite : null;
+      const RECEIVER_URL = (window.AIRLITE && AIRLITE.RECEIVER) || "https://shuipashui.github.io/airlite/receiver.html";
 
       let presetKey = "rush";
       let files = [];
@@ -470,7 +478,32 @@
         $("btnPause").textContent = paused ? "继续" : "暂停";
       };
 
+      function drawPairingQR() {
+        $("recvUrl").textContent = RECEIVER_URL;
+        const c = $("pairQr");
+        if (!c || typeof qrcode === "undefined") return;
+        const ctx2 = c.getContext("2d");
+        const qr = qrcode(0, "M");
+        qr.addData(RECEIVER_URL, "Byte");
+        qr.make();
+        const n = qr.getModuleCount();
+        const quiet = 3;
+        const total = n + quiet * 2;
+        const size = c.width;
+        const mod = size / total;
+        ctx2.fillStyle = "#fff";
+        ctx2.fillRect(0, 0, size, size);
+        ctx2.fillStyle = "#000";
+        for (let y = 0; y < n; y++) {
+          for (let x = 0; x < n; x++) {
+            if (qr.isDark(y, x)) ctx2.fillRect((x + quiet) * mod, (y + quiet) * mod, mod, mod);
+          }
+        }
+      }
+
       window.addEventListener("keydown", (e) => {
+        const tag = (e.target && e.target.tagName) || "";
+        if (tag === "TEXTAREA" || tag === "INPUT") return;
         if (e.code === "Space") {
           e.preventDefault();
           $("btnPause").click();
@@ -491,8 +524,9 @@
       fit();
       renderPresets();
       updateMeta();
+      drawPairingQR();
       if (!P || typeof qrcode === "undefined") {
-        showErr("发送库没有加载。请双击同目录「打开发送端.bat」，或确保 vendor 文件夹和 protocol.js 都在。");
+        showErr("发送库没有加载。请打开完整文件夹里的 sender.html（旁边要有 vendor 和 protocol.js）。");
       }
     })();
   </script>
